@@ -1,0 +1,95 @@
+#!/usr/bin/perl
+
+# seq_diff v0.1
+# c2015 Jeremy Volkening @ BASE2BIO
+# last updated 2015-07-28
+
+use strict;
+use warnings;
+use B2B::Seq::Fastx;
+use Getopt::Long;
+use Pod::Usage;
+
+my $file1 = $ARGV[0];
+my $file2 = $ARGV[1];
+
+my $options_okay = GetOptions(
+    'man'              => sub{ pod2usage(-verbose => 2); },
+    'help'             => sub{ pod2usage(-verbose => 2); },
+);
+
+print_usage('Syntax error: unknown option') if !$options_okay;
+print_usage("Error: input files can\'t be read")
+    if (! -r $file1 || ! -r $file2);
+
+print "\nCalculating diffs (can be slow for long sequences)...\n";
+
+# align w/ MAFFT and read in aligned FASTA
+open my $aln, "cat $file1 $file2 | mafft --auto - 2> /dev/null |";
+my $s = B2B::Seq::Fastx->new($aln);
+
+my $seq1 = uc $s->next_seq->seq;
+my $seq2 = uc $s->next_seq->seq;
+die "Error reading aligned seqs\n"
+    if (! defined $seq1 || ! defined $seq2);
+
+print "\npos\tseq1\tseq2\n";
+print "----------------------\n";
+
+my $len = length $seq1;
+for (0..$len-1) {
+    my $base1 = substr $seq1, $_, 1;
+    my $base2 = substr $seq2, $_, 1;
+    next if ($base1 eq $base2);
+    print join("\t",($_+1,$base1,$base2)),"\n";
+}
+
+print "\nFinished.\n";
+exit;
+
+
+
+
+sub print_usage {
+    my $string = shift;
+    pod2usage(
+        -msg     => $string,
+        -verbose => 1,
+    );
+    exit;
+}
+
+__END__
+
+=head1 NAME
+
+seq_diff - lists differences between two sequences by position
+
+=head1 SYNOPSIS
+
+seq_diff [options] <file1> <file2>
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Display this usage page
+
+=back
+
+=head1 DESCRIPTION
+
+This is a "diff-like" program which takes the names of two FASTA files as
+input, aligns them, and reports the differences by base position. It is
+intended to be used on similar sequences with only a few expected changes -
+otherwise the list of differences might get rather long.
+
+=head1 KNOWN LIMITATIONS AND BUGS
+
+Currently no input validation is performed on the input files. Files are
+assumed to be standard FASTA file format, with the first sequence in each
+file used to calculate the alignment and report diffs
+
+=cut

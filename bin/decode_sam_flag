@@ -1,0 +1,101 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use List::Util qw/max/;
+use Getopt::Long;
+use Pod::Usage;
+
+my $NAME    = 'decode_sam_flag';
+my $VERSION = 0.002;
+
+# print manpage upon request
+GetOptions( 'help' => sub{ pod2usage(-verbose => 2); } );
+
+
+my $decimal = $ARGV[0];
+
+my @codes = (
+    [0x0001 => 'read paired in sequencing'],
+    [0x0002 => 'read pair properly mapped'],
+    [0x0004 => 'read unmapped'            ],
+    [0x0008 => 'mate unmapped'            ],
+    [0x0010 => 'read on reverse strand'   ],
+    [0x0020 => 'mate on reverse strand'   ],
+    [0x0040 => 'read first in pair'       ],
+    [0x0080 => 'read second in pair'      ],
+    [0x0100 => 'secondary alignment'      ],
+    [0x0200 => 'read failed platform QC'  ],
+    [0x0400 => 'read marked as duplicate' ],
+    [0x0800 => 'supplementary alignment'  ],
+);
+
+# prettify bullet if possible
+my $symbols = [' ', 'x'];
+if (defined $ENV{LANG} && $ENV{LANG} =~ /UTF/) {
+    binmode STDOUT, ":utf8";
+    $symbols->[1] = chr(0x2022);
+}
+
+# generate vector of flags from bit-encoded values
+my @flags = map {$_->[0] & $decimal ? 1 : 0} @codes;
+
+# generate vector of marks
+my @marks = map {$symbols->[$_]} @flags;
+
+# print report
+my $divider = '-' x (max(map {length($_->[1])} @codes) + 4);
+print "\n$divider\n";
+print "[$marks[$_]] $codes[$_]->[1]\n" for (0..$#codes);
+print "$divider\n\n";
+
+exit;
+
+__END__
+
+=head1 NAME
+
+decode_sam_flag - print human-readable summary of bit-encoded SAM flag
+
+=head1 SYNOPSIS
+
+decode_sam_flag I<decimal_SAM_flag>
+
+=head1 DESCRIPTION
+
+This utility takes a single decimal integer as an argument (likely taken from
+a SAM alignment file FLAG field), decodes the bitmasks based on the SAM
+specification, and prints a summary of the read properties to the screen. It
+can be useful during manual examination of a SAM alignment (e.g. for
+troubleshooting purposes).
+
+=head1 OPTIONS
+
+None
+
+=head1 CAVEATS AND BUGS
+
+As yet undiscovered. Please reports bugs by email to the author.
+
+=head1 AUTHOR
+
+Jeremy Volkening <jdv *at* base2bio.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2016 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

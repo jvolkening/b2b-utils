@@ -1,0 +1,464 @@
+#!/usr/bin/perl
+
+use v5.10.1;
+use strict;
+use warnings;
+no warnings 'experimental::lexical_subs';
+
+use B2B::Seq::Fastx;
+use File::Temp qw/tempfile/;
+use Getopt::Long;
+use List::Util qw/sum max/;
+use POSIX qw/floor ceil/;
+use Time::Piece;
+
+my $fn_input;
+my $fn_ref;
+my $fn_table;
+my $fn_consensus;
+my $fn_bedgraph;
+my $min_qual         = 10;
+my $min_depth        = 1;
+my $trim_fraction    = 0.2;
+my $sliding_window   = 30;
+my $verbose          = 0;
+my $bg_bin_figs;
+
+my $PROGRAM = 'pileup2tbl';
+
+GetOptions(
+    'in=s'        => \$fn_input,
+    'ref=s'       => \$fn_ref,
+    'table=s'     => \$fn_table,
+    'consensus=s' => \$fn_consensus,
+    'bedgraph=s'  => \$fn_bedgraph,
+    'bg_bin_figs=i' => \$bg_bin_figs,
+    'min_qual=i'  => \$min_qual,
+    'min_depth=i' => \$min_depth,
+    'trim=f'      => \$trim_fraction,
+    'window=i'    => \$sliding_window,
+    'verbose'     => \$verbose,
+) or die "Error parsing parameters\n";
+
+# misc param checking
+die "No output specified"
+    if (! defined $fn_table && ! defined $fn_consensus && ! defined $fn_bedgraph);
+die "Missing reference parameter" if (! defined $fn_ref);
+die "Error reading reference"if (! -r $fn_ref);
+
+# globals
+my @errors;
+my @lines = () if (defined $fn_table);
+
+my %iupac = (
+    A   => 'A',
+    C   => 'C',
+    G   => 'G',
+    T   => 'T',
+    AG  => 'R',
+    CT  => 'Y',
+    CG  => 'S',
+    AT  => 'W',
+    GT  => 'K',
+    AC  => 'M',
+    CGT => 'B',
+    AGT => 'D',
+    ACT => 'H',
+    ACG => 'V',
+);
+
+# choose input (given filename or STDIN)
+my $fh = \*STDIN;
+if (defined $fn_input) {
+    die "Error reading input" if (! -r $fn_input);
+    open $fh, '<', $fn_input;
+}
+
+# grab first seq from reference file
+my $p = B2B::Seq::Fastx->new($fn_ref) or die "Error loading reference";
+my $ref_seq = $p->next_seq;
+warn "Multiple sequences in reference file. Using first.\n"
+    if ($p->next_seq);
+
+my $consensus = B2B::Seq->new('',$ref_seq->id . ' (new consensus)') if (defined $fn_consensus);
+
+# initialize table output if asked
+my $fh_table;
+if (defined $fn_table) {
+    open $fh_table, '>', $fn_table;
+
+    # print table header
+    print {$fh_table} join( "\t", (
+        'loc',
+        'ref',
+        'called',
+        'total_depth',
+        'counted_depth',
+        'mm_rate',
+        'A_count',
+        'T_count',
+        'G_count',
+        'C_count',
+        'N_count',
+        'gap_count',
+        'A_freq',
+        'T_freq',
+        'G_freq',
+        'C_freq',
+        'N_freq',
+        'gap_freq',
+        'A_sb',
+        'T_sb',
+        'G_sb',
+        'C_sb',
+        'bgnd_err',
+        'insertions'
+    ) ) . "\n";
+}
+
+my $last_chr;
+my $last_start;
+my $last_depth;
+my $last_loc;
+my $bg = "track type=bedGraph name=read_coverage maxHeightPixels=1000:80:20\n";
+
+LINE:
+while (my $line = <$fh>) {
+    chomp $line;
+    my @parts = split "\t", $line;
+    my $chr         = $parts[0];
+    my $loc         = $parts[1];
+    my $ref         = uc $parts[2];
+    my $depth       = $parts[3];
+    my $read_string = $parts[4];
+    my $qual_string = $parts[5];
+
+    # Generate bedgraph output
+    if (defined $fn_bedgraph) {
+
+
+        # bin depth
+        if (defined $bg_bin_figs) {
+            my $divisor = 10**(length($depth)-$bg_bin_figs);
+            $depth = int($depth/$divisor) * $divisor;
+        }
+
+        $last_chr   = $last_chr   // $chr;
+        $last_loc   = $last_loc   // $loc;
+
+        die "only single-sequence files supported" if ($chr ne $last_chr);
+
+        if ($loc > 1 && ! defined $last_start) {
+            $bg .= join("\t",$last_chr,0,$loc-1,0) . "\n";
+        }
+        $last_loc = $last_loc // $loc;
+        if ($loc - $last_loc > 1) {
+            $bg .= join("\t",$last_chr,$last_start,$last_loc-1,$last_depth) . "\n";
+            $last_depth = 0;
+            $last_start = $last_loc;
+        }
+        if (! defined $last_depth || $depth != $last_depth) {
+            $bg .= join("\t",$last_chr,$last_start,$loc-1,$last_depth) . "\n"
+                if (defined $last_depth);
+            $last_depth = $depth;
+            $last_start = $loc-1;
+        }
+
+    }
+
+    if ($depth < 1) {
+        if (defined $fn_consensus) {
+            $consensus .= 'N';
+        }
+        if (defined $fn_table) {
+            push @lines, [
+                $loc,
+                $ref,
+                'N',
+                (0) x 19,
+                undef,
+                '',
+            ];
+        }
+        push @errors, 0;
+        next LINE;
+    }
+
+    my $t = $last_loc + 1;
+    while ($t < $loc) {
+        if (defined $fn_consensus) {
+            $consensus .= 'N';
+        }
+        if (defined $fn_table) {
+            push @lines, [
+                $t,
+                substr($ref_seq, $t-1, 1),
+                'N',
+                (0) x 19,
+                undef,
+                '',
+            ];
+        }
+        push @errors, 0;
+        ++$t;
+    }
+
+    # handle insertions
+    my %inserts;
+    while ($read_string =~ /\+(\d+)((??{"[ATGCNatgcnRYSWKMBDHVryswkmbdhv]{$^N}"}))/g) {
+        $inserts{$2} += 1;
+    }
+
+    # ...and strip extra characters
+    $read_string =~ s/\^.//g;
+    $read_string =~ s/[\+\-](\d+)(??{"[ATGCNatgcnRYSWKMBDHVryswkmbdhv]{$^N}"})//g;
+    $read_string =~ s/[^\.\,\w\*]//g;
+    
+    # simple parse check
+    my $l1 = length($read_string);
+    my $l2 = length($qual_string);
+    die "read/qual mismatch ($l1 v $l2)" if ($l1 != $l2);
+
+    # split into arrays
+    my %counts = map {$_ => 0} qw/A T G C N a t g c */;
+    my %cons_counts = map {$_ => 0} qw/A T G C N a t g c */;
+    my @chars  = split '', $read_string;
+    my @quals  = map {ord($_) - 33} split('', $qual_string);
+
+    READ:
+    for my $i (0..$#chars) {
+
+
+        if ($chars[$i] =~ /[.,ATGCNatgcn*]/) {
+
+            my $char = $chars[$i];
+            $char = $char eq '.' ? $ref
+                  : $char eq ',' ? lc($ref)
+                  : $char eq 'n' ? 'N'
+                  : $char;
+
+            # currently, all reads are used for consensus calling, but
+            # low-quality reads are filtered for the table output
+            # (subject to review)
+            $cons_counts{ uc($char) } += 1;
+            next READ if ($quals[$i] < $min_qual);
+            $counts{ $char } += 1;
+        }
+        else {
+            die "unexpected character: $chars[$i]";
+        }
+    }
+
+    # calculate strand bias and collapse counts
+    my %sb;
+    for my $b (qw/A T G C/) {
+        my $n = $counts{$b} + $counts{lc($b)}; 
+        $sb{$b} = $n > 0
+            ? ($n-1)/$n*(2*max($counts{$b}/$n, ($n-$counts{$b})/$n)-1)
+            : 0;
+        $counts{$b} += $counts{lc($b)};
+        delete $counts{lc($b)};
+    }
+
+    $counts{$ref} = $counts{$ref} // 0; # some IUPAC codes not defined above
+    $cons_counts{$ref} = $cons_counts{$ref} // 0; # some IUPAC codes not defined above
+    my $mismatches    = sum map {$counts{$_}} grep {$_ ne $ref} keys %counts;
+    my $counted_depth = $counts{$ref} + $mismatches;
+    my $cons_depth    = sum map {$cons_counts{$_}} keys %counts;
+    my $error_rate    = $counted_depth == 0
+        ? 0
+        : sprintf '%.4f', $mismatches/$counted_depth;
+    push @errors, $error_rate;
+
+    my @insert_strings = ();
+    my $called = '';
+    my $consensus_insert = '';
+
+    #create case-insensitive insert hash
+    my %combined_inserts;
+    for (keys %inserts) {
+        $combined_inserts{uc($_)} += $inserts{$_};
+    }
+
+    if (scalar(keys %combined_inserts) > 0) {
+        my @sorted_inserts = sort {
+            $combined_inserts{$b} <=> $combined_inserts{$a}
+        } keys %combined_inserts;
+        for (@sorted_inserts) {
+            my $f_count = $inserts{$_} // 0;
+            my $r_count = $inserts{lc($_)} // 0;
+            my $n = $combined_inserts{$_};
+            my $sb = sprintf '%.3f', ($n-1)/$n*max($f_count/$n, ($n-$f_count)/$n);
+            push @insert_strings, "$_($f_count,$r_count:$sb)";
+        }
+
+        # decide whether to include insert in consensus
+        my @realigned = realign(\%combined_inserts);
+        for my $i (0..$#realigned) {
+            my @b = sort {
+                $realigned[$i]->{$b} <=> $realigned[$i]->{$a}
+            } keys %{ $realigned[$i] };
+            if ($realigned[$i]->{$b[0]}/$l1 > 0.5) {
+                $consensus_insert .= uc $b[0];
+            }
+        }
+                
+    }
+    if ($cons_depth < $min_depth) {
+        $called = 'N';
+    }
+    else {
+        my @sorted_bases
+            = sort {$cons_counts{$b} <=> $cons_counts{$a}} keys %cons_counts;
+
+        # get all top hits that aren't gaps
+        my @equal_hits
+            = grep {$_ eq $sorted_bases[0] && $_ ne '*'} @sorted_bases;
+        
+        if (scalar(@equal_hits)) {
+            my $tag = join('',sort {$a cmp $b} @equal_hits);
+            die "bad tag $tag" if (! defined $iupac{$tag});
+            $called = $iupac{$tag};
+        }
+    }
+    $called .= $consensus_insert;
+
+    warn "consensus/reference difference at $loc (ref: $ref cons: $called)\n"
+        if ($verbose && $called ne $ref);
+
+    if (defined $fn_consensus) {
+        $consensus .= $called;
+    }
+    if (defined $fn_table) {
+        push @lines, [
+            $loc,
+            $ref,
+            $called eq '' ? '-' : $called,
+            $depth,
+            $counted_depth,
+            sprintf('%.3f',$error_rate),
+            $counts{A},
+            $counts{T},
+            $counts{G},
+            $counts{C},
+            $counts{N},
+            $counts{'*'},
+            sprintf('%.3f',$counts{A}/$counted_depth),
+            sprintf('%.3f',$counts{T}/$counted_depth),
+            sprintf('%.3f',$counts{G}/$counted_depth),
+            sprintf('%.3f',$counts{C}/$counted_depth),
+            sprintf('%.3f',$counts{N}/$counted_depth),
+            sprintf('%.3f',$counts{'*'}/$counted_depth),
+            sprintf('%.3f',$sb{A}),
+            sprintf('%.3f',$sb{T}),
+            sprintf('%.3f',$sb{G}),
+            sprintf('%.3f',$sb{C}),
+            undef,
+            join(':',@insert_strings)
+        ];
+    }
+    
+    $last_loc = $loc;
+
+}
+
+if (defined $fn_bedgraph) {
+
+    $bg .= join("\t",$last_chr,$last_start,$last_loc,$last_depth) . "\n";
+    $bg .= join("\t",$last_chr,$last_loc,length($ref_seq->seq),0) . "\n"
+        if ($last_loc < length($ref_seq->seq));
+    open my $out, '>', $fn_bedgraph;
+    print {$out} $bg;
+    close $out;
+
+}
+        
+
+if (defined $fn_consensus) {
+
+    open my $out, '>', $fn_consensus;
+    print {$out} $consensus->as_fasta;
+    close $out;
+
+}
+
+if (defined $fh_table) {
+
+    # calculate sliding errors
+    my @avg_errors;
+    my $l = scalar(@errors);
+    $sliding_window = $l if ($l < $sliding_window);
+    my $left  = floor(($sliding_window-1)/2);
+    my $right = ceil(($sliding_window-1)/2);
+    my $lower = $left;
+    my $upper = $l - $right;
+    for my $i (0..$#errors) {
+        my @pool;
+        if ($i < $lower) {
+            @pool = (@errors[0..$i-1] ,@errors[$i+1..$sliding_window-1]);
+        }
+        elsif ($i >= $upper) {
+            @pool = (@errors[$l-$sliding_window..$i-1], @errors[$i+1..$l-1]);
+        }
+        else {
+            @pool = (@errors[$i-$left..$i-1], @errors[$i+1..$i+$right]);
+        }
+        die "bad pool size @pool at $i" if (scalar(@pool)+1 != $sliding_window);
+
+        # calc trimmed mean
+        @pool = sort {$a <=> $b} @pool;
+        my $l = @pool;
+        my @trimmed
+            = @pool[ int($l*$trim_fraction), int($l*(1-$trim_fraction))+0.5 ];
+        my $tm = scalar(@trimmed) > 0 ? sum(@trimmed)/scalar(@trimmed) : 'NA';
+        push @avg_errors, $tm;
+    }
+    my $iter = 0;
+    POS:
+    for (0..$#lines) {
+        my @parts = @{ $lines[$_] };
+        @parts[22] = sprintf '%.3f', $avg_errors[$_];
+        print {$fh_table} join( "\t",@parts), "\n";
+    }
+    exit;
+}
+
+
+sub realign {
+
+    my ($hash) = @_;
+    my @seqs = keys %{ $hash };
+    my @weights = map {$hash->{$_}} @seqs;
+    my @scores;
+    if (scalar(@seqs) > 1) {
+        my ($fh,$fn) = tempfile;
+        for (0..$#seqs) {
+            my $n = $_ + 1;
+            print {$fh} ">$n\n$seqs[$_]\n";
+        }
+        close $fh;
+        open my $stream, '-|', 'mafft', '--auto', '--quiet', '--op',0, '--lop', 0, $fn;
+        my $p = B2B::Seq::Fastx->new($stream);
+        while (my $seq = $p->next_seq) {
+            my $w = shift @weights;
+            for (0..length($seq)-1) {
+                my $base = substr $seq, $_, 1;
+                next if ($base eq '-');
+                $scores[$_] = {} if (! defined $scores[$_]);
+                $scores[$_]->{$base} += $w;
+            }
+        }
+    }
+    else {
+        my $seq = $seqs[0];
+        my $w   = $weights[0];
+        for (0..length($seq)-1) {
+            my $base = substr $seq, $_, 1;
+            next if ($base eq '-');
+            $scores[$_] = {} if (! defined $scores[$_]);
+            $scores[$_]->{$base} += $w;
+        }
+    }
+    return @scores;
+        
+}

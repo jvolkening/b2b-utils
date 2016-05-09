@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+
+# get_orfs v0.2
+# c2014 Jeremy Volkening @ BASE2BIO
+# last updated 2014-12-09
+
+use strict;
+use warnings;
+use Fatal qw/open close/;
+use FindBin;
+use Getopt::Long;
+use Pod::Usage;
+use BioX::Seq::Stream;
+use BioX::Seq::Utils qw/build_ORF_regex/;
+
+# Command line option parsing
+my $in_file;
+my $out_file;
+my $min_size = 75;
+my $strict  = 0;
+my $longest = 0;
+my $cds     = 0;
+
+my $res = GetOptions(
+    "in:s"       => \$in_file,
+    "out:s"      => \$out_file,
+    "min_size=i" => \$min_size,
+    "strict"     => \$strict,
+    "longest"    => \$longest,
+    "cds"        => \$cds,
+    'help'      => sub{ pod2usage(-verbose => 2); },
+);
+
+# default input is STDIN
+my $stream = BioX::Seq::Stream->new( $in_file );
+
+# default output is STDOUT
+my $fh_out;
+if (defined $out_file) {
+    open $fh_out, '>', $out_file;
+}
+else {
+    $fh_out = \*STDOUT;
+}
+
+my $mode = $strict ? 3 : 0;
+my $re_orf = build_ORF_regex($mode, $min_size);
+
+while (my $seq = $stream->next_seq) {
+    my $count = 1;
+    my $len  = length $seq;
+    my $id   = $seq->id;
+
+    for my $strand (0..1) {
+        my $str = $strand ? $seq->rev_com->seq : $seq->seq;
+        my $suf = $strand ? ' (REVERSE SENSE)' : '';
+        for my $frame (0..2) {
+            pos($str) = $frame;
+            while ($str =~ /$re_orf/g) {
+                my ($s, $e) = map {$strand ? $len-$_+1 : $_} $-[1]+1, $+[1];
+                my $orf = BioX::Seq->new( $1, "${id}_" . $count++, "[$s - $e]$suf");
+                print {$fh_out} $orf->translate->as_fasta();
+            }
+        }
+    }
+}
+
+exit;
+
+__END__
+
+=head1 NAME
+
+get_orfs - detect open reading frames in a DNA sequence
+
+=head1 SYNOPSIS
+
+get_orfs [options] --in <fasta_in> --out <fasta_out>
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--in <string>>
+
+Specify file from which to read data. This should be one or more DNA sequences in FASTA format (default: STDIN).
+
+=item B<--out <string>>
+
+Specify file to which to write output in FASTA format (default: STDOUT).
+
+=item B<--minsize <integer>>
+
+Minimum codon length cutoff for reported ORFs (default: 75)
+
+=item B<--strict <bool>>
+
+Reported ORFs must have start and stop codons at ends (default: FALSE);
+
+=item B<--longest <bool>>
+
+Report the single longest ORF above length cutoff for each input sequence (default: FALSE, all ORFs above cutoff are reported)
+
+=item B<--cds <bool>>
+
+Report ORFS in nucleotide sequence rather than translated amino acid sequence (default: FALSE);
+
+=back
+
+=head1 DESCRIPTION
+
+This program finds open reading frames in the input DNA sequences and reports them as translated amino acid sequence (or nucleotide CDS, if requested). Various options control the requirements for ORF calling. Reported ORFs are named based on the input sequence with an "_<count>" appended for each ORF, and coordinates and strand are reported in the output deflines.
+
+=cut

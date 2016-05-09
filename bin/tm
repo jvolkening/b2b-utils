@@ -1,0 +1,218 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+
+use constant K_CORRECT => 273.15;
+use constant CT_X      => 4; # varies depending on paper referenced
+
+use constant NAME      => 'tm';
+use constant VERSION   => '0.1';
+
+#---------------------------------------------------------------------------#
+# Command line option parsing
+#---------------------------------------------------------------------------#
+
+my $dna_conc  = 1; # nM excess strand concentration
+my $salt_conc = 500; # mM monovalent cation concentration
+my $seq;
+
+GetOptions(
+    'seq=s'             => \$seq,
+    'monovalent_conc=f' => \$salt_conc,
+    'strand_conc=f'     => \$dna_conc,
+    'help'              => sub { pod2usage( -verbose => 2 ) },
+);
+
+pod2usage(-verbose => 1) if (! defined $seq);
+
+print round( calc_tm( $seq ), 1), "\n";
+
+sub calc_tm {
+
+    my $oligo = uc shift;
+
+    #Populate energy parameter matrix (units are kcal/mol)
+    my %dH_matrix = ();
+    my %dS_matrix = ();
+
+    my $allawi_table = <<'END_ALLAWI';
+AA	-7.9	-22.2
+AT	-7.2	-20.4
+TA	-7.2	-21.3
+CA	-8.5	-22.7
+GT	-8.4	-22.4
+CT	-7.8	-21
+GA	-8.2	-22.2
+CG	-10.6	-27.2
+GC	-9.8	-24.4
+GG	-8	-19.9
+initGC	0.1	-2.8
+initAT	2.3	4.1
+sym	0	-1.4
+END_ALLAWI
+
+    # for now just store the table in a scalar, but can easily add the option
+    # to read a custom table here
+    open my $tbl_in, '<', \$allawi_table;
+
+    while (my $line = <$tbl_in>) {
+        next if ($line !~ /\S/);
+        chomp $line;
+        my ($nn, $dH, $dS) = split /\s+/, $line;
+        die "bad energy table" if (! defined $dS);
+        $dH_matrix{$nn} = $dH;
+        $dS_matrix{$nn} = $dS;
+    }
+
+    my $sum_dH = 0;
+    my $sum_dS = 0;
+
+    # sum enthalpies and entropies for each nearest neighbor pair
+
+    while ($oligo =~ /(?=(\w\w))/g) {
+        my $nn_pair = $1;
+        my $nn_pair_rc = reverse $nn_pair;
+        $nn_pair_rc =~ tr/ATGC/TACG/;
+        $sum_dH += $dH_matrix{$nn_pair} // $dH_matrix{$nn_pair_rc}
+            // die "missing energy for $nn_pair";
+        $sum_dS += $dS_matrix{$nn_pair} // $dS_matrix{$nn_pair_rc}
+            // die "missing energy for $nn_pair";
+    }
+
+    # correct for terminal initation sequences
+
+    if ($oligo =~ /^[AT]/) {#if terminal A/T
+        $sum_dH += $dH_matrix{'initAT'};
+        $sum_dS += $dS_matrix{'initAT'};
+    }
+    elsif ($oligo =~ /^[GC]/) {#if terminal G/C
+        $sum_dH += $dH_matrix{'initGC'};
+        $sum_dS += $dS_matrix{'initGC'};
+    }
+
+    if ($oligo =~ /[AT]$/) {#if terminal A/T
+        $sum_dH += $dH_matrix{'initAT'};
+        $sum_dS += $dS_matrix{'initAT'};
+    }
+    elsif ($oligo =~ /[GC]$/) {#if terminal G/C
+        $sum_dH += $dH_matrix{'initGC'};
+        $sum_dS += $dS_matrix{'initGC'};
+    }
+
+    # check for symmetry
+    # (is the right interpretation?)
+    my $oligo_rc = reverse $oligo;
+    $oligo_rc =~ tr/ATGC/TACG/;
+    if ($oligo eq $oligo_rc) {
+        $sum_dH += $dH_matrix{'sym'};
+        $sum_dS += $dS_matrix{'sym'};
+    }
+
+    my $Tm = ($sum_dH)*1000
+        / ($sum_dS + 1.987*log($dna_conc/1000000000/CT_X)) - K_CORRECT;
+    my $corrected_Tm = _salt_correction( $Tm, $oligo );
+    return $corrected_Tm;
+}
+
+sub _salt_correction {
+
+    my ($old_Tm, $oligo) = @_;
+    $old_Tm += K_CORRECT;
+    my $gc_count = $oligo =~ tr/GC/GC/;
+    my $gc_fraction = $gc_count / length($oligo);
+    my $new_Tm = 1 / ( (1/$old_Tm)
+        + (4.29*$gc_fraction-3.95)*.00001*log($salt_conc/1000)
+        + 9.40*.000001*log($salt_conc/1000)**2 );
+    $new_Tm -= K_CORRECT;
+    return $new_Tm;
+
+}
+
+sub round {
+
+    my ($val,$places) = @_;
+    return int($val*10**$places+0.5)/10**$places;
+
+}
+
+__END__
+
+=head1 NAME
+
+tm - calculate oligo melting temperature
+
+=head1 VERSION
+
+This documentation refers to v0.2
+
+=head1 SYNOPSIS
+
+tm --seq I<string> [--monovalent_conc I<float> --strand_conc I<float>]
+
+=head1 DESCRIPTION
+
+Calculates the melting temperature of an oligonucleotide/target complex using
+a nearest-neighbor calculation; useful for designing primers, probes, and
+other oligonucleotide products where Tm is a critical parameter.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--seq> I<string>
+
+The oligonucleotide sequence to calculate a Tm for (mandatory).
+
+=item B<--monovalent_conc> I<float>
+
+Concentration of monovalent cations in solution, in millimolar (default: 500)
+
+=item B<--strand_conc> I<float>
+
+Concentration of the excess duplex strand in solution, in nanomolar (default: 1)
+
+=item B
+
+=item B<--help>
+
+Print this help page
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Uses nearest-neighbor parameters from
+
+I<Allawi HT, SantaLucia J Jr. Biochemistry. 1997. 36(34):10581-94>
+
+and salt correction from
+
+I<Owczarzy et al. Biochemistry. 2008. 47:5336-53>
+
+Please reports bugs by email to the author.
+
+=head1 AUTHOR
+
+Jeremy Volkening <jeremy *at* base2bio.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2014 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

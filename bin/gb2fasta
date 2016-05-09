@@ -1,0 +1,18 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Bio::SeqIO;
+
+my $in = Bio::SeqIO->new(
+    -file => $ARGV[0],
+    -format => 'genbank',
+);
+my $out = Bio::SeqIO->new(
+    -fh => \*STDOUT,
+    -format => 'fasta',
+);
+while (my $seq = $in->next_seq) {
+    $out->write_seq($seq);
+}

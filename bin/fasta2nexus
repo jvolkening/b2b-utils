@@ -1,0 +1,110 @@
+#!/usr/bin/perl
+
+# fasta2phylip v0.1
+# c2014 Jeremy Volkening @ BASE2BIO
+# last updated 2014-03-02
+
+use strict;
+use warnings;
+use B2B::Seq::Stream;
+use Getopt::Long;
+use Pod::Usage;
+
+my $line_len     = 60;
+my $strict_names = 0;
+my $interleaved  = 0;
+my $input        = $ARGV[0];
+my $print_version = 0;
+my $type;
+
+use constant NAME     => 'fasta2nexus';
+use constant VERSION  => '0.1';
+
+my $options_okay = GetOptions(
+
+    'line_length=i' => \$line_len,
+    'strict_names'  => \$strict_names,
+    'interleaved'   => \$interleaved,
+    'type=s'        => \$type,
+    'input=s'       => \$input,
+    'man'              => sub{ pod2usage(-verbose => 2); },
+    'help'             => sub{ pod2usage(-verbose => 2); },
+    'version'          => \$print_version,
+);
+
+# Handle version requests
+if ($print_version) {
+    print 'This is ' , NAME, ' v' , VERSION, "\n";
+    print "Copyright 2014 Jeremy Volkening (jeremy\@base2bio.com)\n";
+    print "Licensed under the GNU GPLv3\n";
+    exit;
+}
+
+print_usage('Syntax error: unknown option') if !$options_okay;
+print_usage("Error: input file can\'t be read")
+    if (defined $input && ! -r $input );
+
+die "Bad sequence type: $type (must be 'dna' or 'protein')\n"
+    if (defined $type && $type !~ /^(?:dna|protein)$/i);
+
+my $s = B2B::Seq::Stream->new($input);
+
+my $l_seqs;
+my %seqs;
+my @ordered;
+my %unique;
+my $max_id_len = 0;
+while (my $obj = $s->next_seq) {
+    my $id = $obj->id;
+    $max_id_len = length($id) if (length($id) > $max_id_len);
+    push @ordered, $id;
+    my $seq = $obj->seq;
+    $l_seqs = length($seq) if (! defined $l_seqs);
+    if (! defined $type) {
+        $type = B2B::Seq::_is_nucleic($seq) ? 'dna' : 'protein';
+    }
+    die "mismatch in sequence lengths" if (length($seq) != $l_seqs);
+    $seqs{$id} = $seq;
+}
+
+my $n_seqs = scalar keys %seqs;
+my $il_bool = $interleaved ? 'yes' : 'no';
+++$max_id_len;
+
+# Header
+
+print "#NEXUS\n\n";
+
+my $indent = '  ';
+print "begin data;\n";
+print "${indent}dimensions ntax=$n_seqs nchar=$l_seqs;\n";
+print "${indent}format datatype=$type interleave=$il_bool gap=-;\n";
+print "${indent}matrix\n";
+
+if ($interleaved) {
+    my $i = 0;
+    while ($i < $l_seqs) {
+        for (@ordered) {
+            printf "%-${max_id_len}s", $_;
+            print substr($seqs{$_}, $i, $line_len), "\n";
+        }
+        print "\n";
+        $i += $line_len;
+    }
+}
+else { #non-interleaved
+    printf("%-${max_id_len}s%s\n", $_, $seqs{$_}) for (@ordered);
+}
+
+# Footer
+print "${indent};\n";
+print "end;\n";
+
+sub print_usage {
+    my $string = shift;
+    pod2usage(
+        -msg     => $string,
+        -verbose => 1,
+    );
+    exit;
+}

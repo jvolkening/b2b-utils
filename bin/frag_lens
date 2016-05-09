@@ -1,0 +1,64 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Cwd qw/abs_path/;
+use List::Util qw/sum/;
+use Getopt::Long;
+use File::Temp qw/tempdir tempfile/;
+
+my @good_codes = ( 0x0002, 0x0040 );
+my @bad_codes  = ( 0x0004, 0x0100, 0x0800 );
+
+my $fasta;
+my $forward;
+my $reverse;
+my $sam;
+my $threads = 1;
+my $max_align = 10000;
+
+GetOptions(
+    'forward=s' => \$forward,
+    'reverse=s' => \$reverse,
+    'sam=s'     => \$sam,
+    'ref=s'     => \$fasta,
+    'threads=i' => \$threads,
+    'max_aln=i' => \$max_align,
+);
+
+my $fh_sam;
+my $tmp_fasta;
+
+if (defined $sam) {
+    open $fh_sam, '<', $sam or die "failed to open SAM\n";
+}
+
+else {
+
+    my ($tmp_dir) = tempdir( CLEANUP => 1);
+
+    die "specify forward and reverse read files and reference\n"
+        if (! defined $forward || ! defined $reverse || ! defined $fasta); 
+    
+    my $res = system("ln -s $fasta $tmp_dir/tmp.fasta");
+    die "link failed" if ($res);
+    $res = system("bwa index $tmp_dir/tmp.fasta");
+    die "index failed" if ($res);
+    open $fh_sam, "bwa mem -t $threads $tmp_dir/tmp.fasta $forward $reverse |";
+}
+
+my $c = 0;
+while (my $line = <$fh_sam>) {
+    next if ($line =~ /^\@/);
+    chomp $line;
+    my @parts = split "\t", $line;
+    my $flags = $parts[1];
+    my $sum1 = sum map {$_ & $flags ? 1 : 0} @good_codes;
+    my $sum2 = sum map {$_ & $flags ? 1 : 0} @bad_codes;
+    if ($sum1 == scalar @good_codes && $sum2 == 0) {
+        print abs($parts[8]), "\n";
+        last if (++$c >= $max_align);
+    }
+}
+close $fh_sam;

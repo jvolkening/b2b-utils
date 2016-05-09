@@ -1,0 +1,51 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use File::Find;
+use Getopt::Long;
+
+my $lossy = 0;
+my $unlink = 0;
+my $target;
+my $threads = 1;
+
+my $DSRC_BIN = 'dsrc2';
+
+GetOptions(
+
+    'lossy'     => \$lossy,
+    'unlink'    => \$unlink,
+    'target=s'  => \$target,
+    'threads=i' => \$threads,
+
+);
+
+find( \&wanted, $target );
+
+exit;
+
+sub wanted {
+
+    local $| = 1;
+    my $original = $_;
+    return if ($original !~ /(?:fastq|fq)\.gz\Z/);
+    my $new = $original;
+    $new =~ s/\.gz$/\.dsrc/;
+    my $lossy_string = $lossy ? '-l' : '';
+    print "Compressing $original...";
+    my $ret = system( "gunzip -c $original | $DSRC_BIN c -s -m2 $lossy_string $new" );
+    if ($ret) {
+        print "FAILED\n";
+        unlink $new;
+        return;
+    }
+    print "SUCCESS\n";
+    unlink $original if ($unlink);
+    return;
+
+}
+
+
+    
+

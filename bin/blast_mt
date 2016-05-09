@@ -1,0 +1,159 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Bio::SeqIO;
+use Carp;
+use Config;
+$Config{useithreads}
+    or die "Your Perl is not thread-capable. "
+        . "Recompile with threads to run this program";
+use File::Temp;
+use Getopt::Long;
+use IPC::Open2;
+use threads;
+use threads::shared;
+use Thread::Queue;
+use IO::Handle;
+
+# Initialize params and set default values where appropriate
+my $threads = 1;
+my $outfile;
+my $infile;
+my $chunk_size = 1;
+my $program;
+my $db;
+my $evalue = 1;
+my $max_hits = 20;
+
+GetOptions(
+    'i=s'          => \$infile,
+    'o=s'          => \$outfile,
+    'threads=i'    => \$threads,
+    'chunk_size=i' => \$chunk_size,
+    'program=s'    => \$program,
+    'db=s'         => \$db,
+    'evalue=s'     => \$evalue,
+    'max_hits=i'   => \$max_hits,
+);
+
+my @other_opts = @ARGV;
+if (@other_opts > 0) {
+    warn "additional opts: @ARGV\n";
+}
+
+my $seq_count :shared;
+my $finished_count :shared = 0;
+my $thread_count :shared = 0;
+
+warn "Using $threads threads...\n";
+die "Error opening sequence file. Exiting...\n"
+    if (! -r $infile);
+
+# set up queues and threads
+my $seq_queue = Thread::Queue->new();
+my $result_queue = Thread::Queue->new();
+my @work_threads;
+for (1..$threads) {
+    push @work_threads,  threads->create(\&run_blast);
+}
+my $handler_thr = threads->create(\&handle_res);
+
+# populate seq queue from input fasta file
+my $seq_stream = Bio::SeqIO->new( -file => $infile );
+my $tmp_count = 1;
+my $tmp_string;
+my $queued;
+warn "Populating queue...\n";
+while (my $obj = $seq_stream->next_seq) {
+    my $id = $obj->primary_id;
+    my $desc = $obj->description;
+    my $seq = $obj->seq;
+    $tmp_string .= ">$id $desc\n$seq\n";
+    if ($tmp_count%$chunk_size == 0) {
+        $seq_queue->enqueue( $tmp_string);
+        $tmp_string = '';
+        ++$queued;
+    }
+    ++$tmp_count;
+}
+$seq_queue->enqueue( $tmp_string) if ($tmp_string ne '');
+++$queued if ($tmp_string ne '');
+$seq_queue->enqueue(undef) for (1..$threads);
+warn "Finished (queued $queued chunks).\n";
+
+$seq_count = $queued;
+
+# wait for all threads to finish
+for (@work_threads) {
+    $_->join();
+}
+$result_queue->enqueue(undef);
+$handler_thr->join();
+
+exit;
+
+sub run_blast {
+    
+    my $thread_id;
+    {
+        lock($thread_count);
+        $thread_id = $thread_count++;
+    }
+    warn "initializing thread $thread_id\n";
+    while (my $query = $seq_queue->dequeue()) {
+        my $tmp_out = File::Temp->new(
+            TEMPLATE => 'tmpXXXXXXXX',
+            SUFFIX   => '.query',
+            UNLINK   => 1,
+        );
+        my $tmp_in = File::Temp->new(
+            TEMPLATE => 'tmpXXXXXXXX',
+            SUFFIX   => '.blast',
+            UNLINK   => 1,
+        );
+        print {$tmp_out} "$query\n";
+        close $tmp_out;
+        my  $hits_string = $max_hits > 0 ? "-num_descriptions $max_hits -num_alignments $max_hits" : '';
+        system("$program -db $db -evalue $evalue $hits_string -query $tmp_out -out $tmp_in @other_opts");
+        my $res_string = '';
+        while (my $line = <$tmp_in>) {
+            $res_string .= $line;
+        }
+        $result_queue->enqueue($res_string);
+        {
+            lock($finished_count);
+            ++$finished_count;
+            my $total = defined $seq_count ? $seq_count : '???';
+            warn "Completed $finished_count of $total chunks\n";
+        }
+    }
+    warn "Exiting thread $thread_id\n";
+
+}
+
+sub handle_res {
+
+    my $head;
+    my $tail;
+    my $results;
+    open my $out, '>', $outfile;
+    while (my $res_string = $result_queue->dequeue()) {
+
+        print {$out} "$res_string";
+    }
+    close $out;
+
+}
+
+sub show_progress {
+
+    autoflush STDOUT 1;
+    my ($progress) = @_;
+    my $stars   = '*' x int($progress*10);
+    my $percent = int($progress*100) . '% completed';
+    print"\r$percent";
+    autoflush STDOUT 0;
+
+}

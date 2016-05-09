@@ -1,0 +1,308 @@
+#!/usr/bin/perl
+
+use v5.10.1;
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Pod::Usage;
+use FindBin;
+use List::Util qw/any/;
+
+use B2B::Seq::Fastx;
+use Bio::DB::Sam;
+
+use constant NAME => 'gff3_to_fa';
+use constant VERSION => '0.3';
+
+my $fasta_filename;
+my $gff_filename;
+my $output_type;
+my $verbose;
+
+# Collect command-line parameters
+my $err_msg = 'Syntax error: please check your syntax';
+pod2usage( -msg => $err_msg, -verbose => 1) if
+    ( ! GetOptions(
+        'fasta=s'  => \$fasta_filename,
+        'gff=s'    => \$gff_filename,
+        'type=s'   => \$output_type,
+        'verbose'  => \$verbose,
+        'help'     => sub { pod2usage( -verbose => 2 ); },
+    )
+);
+
+if (! $output_type) {
+    warn "No type supplied, defaulting to \"CDS\"\n";
+    $output_type = 'CDS';
+}
+$output_type = lc $output_type;
+die "Can't open GFF file for reading"
+    if (! -r $gff_filename);
+die "Can't open FASTA file for reading"
+    if (! -r $fasta_filename);
+
+my $fai = Bio::DB::Sam::Fai->load($fasta_filename);
+
+my $curr_gene = {}; #structure in which to keep current gene
+my $gene_count = 0;
+    
+open my $gff, '<', $gff_filename;
+
+LINE:
+while (my $line = <$gff>) {
+    next LINE if ($line =~ /^#/);    #skip comments
+    next LINE if ($line =~ /^\s*$/); #skip blank lines
+    chomp $line;
+    my (
+        $chr,
+        $src,
+        $type,
+        $start,
+        $end,
+        $score,
+        $strand,
+        $phase,
+        $annot_string
+    ) = split "\t", $line;
+    $strand = $strand eq '-' ? -1 : 1; #make strand amenable to arithmetic
+    die "start > end" if ($start > $end); #format check
+    my %annots;
+    for (split /;\s*/, $annot_string) {
+        $_ =~ s/\"//g;
+        my($tag,$val) = split /\s*=\s*/, $_;
+        my @vals = split /\s*,\s*/, $val;
+        $annots{$tag} = [@vals];
+    }
+    for($type) {
+        when ('gene') {
+            die "missing ID" if (! defined $annots{'ID'}->[0]);
+            process_gene( $curr_gene ) if (defined $curr_gene->{id});
+            ++$gene_count;
+            $curr_gene = {};
+            $curr_gene->{strand} = $strand;
+            $curr_gene->{id}     = $annots{'ID'}->[0];
+            $curr_gene->{chr}    = $chr;
+            $curr_gene->{start}  = $start;
+            $curr_gene->{end}    = $end;
+        }
+        when (/^(transcript|mRNA)$/) {
+            last if ($output_type eq 'gene');
+            die "missing ID"     if (! defined $annots{'ID'}->[0]);
+            die "missing parent" if (! defined $annots{'Parent'}->[0]);
+            die "transcript parent mismatch"
+                if (! any {$_ eq $curr_gene->{id}} @{ $annots{'Parent'} });
+            $curr_gene->{transcripts}->{$annots{'ID'}->[0]}->{cds}   = [];
+            $curr_gene->{transcripts}->{$annots{'ID'}->[0]}->{exons} = [];
+        }
+        when ('CDS') {
+            last if ($output_type ne 'cds' && $output_type ne 'protein');
+            die "missing parent" if (! defined $annots{'Parent'}->[0]);
+
+            # CDS can have multiple parents, all of which need to be added to
+            my $matched = 0;
+            for my $p (@{ $annots{'Parent'} }) {
+                if (defined $curr_gene->{transcripts}->{$p}) {
+                    push @{ $curr_gene->{transcripts}->{$p}->{cds} },
+                        [$start,$end,$phase];
+                    ++$matched;
+                }
+            }
+            die "No parents found for $annots{ID}->[0]\n" if (! $matched);
+        }
+        when ('exon') {
+            last if ($output_type ne 'transcript');
+            die "missing parent" if (! defined $annots{'Parent'});
+
+            # CDS can have multiple parents, all of which need to be added to
+            my $matched = 0;
+            for my $p (@{ $annots{'Parent'} }) {
+                if (defined $curr_gene->{transcripts}->{$p}) {
+                    push @{ $curr_gene->{transcripts}->{$p}->{exons} },
+                        [$start,$end];
+                    ++$matched;
+                }
+            }
+            die "No parents found for $annots{ID}->[0]\n" if (! $matched);
+        }
+    }
+}
+
+process_gene($curr_gene) if (defined $curr_gene->{id}); #process last gene
+
+
+
+sub process_gene {
+
+    my $gene_ref = shift;
+    warn "Processing $gene_ref->{ID} ($gene_count)\n" if ($verbose);
+    my $strand = $gene_ref->{strand};
+    if ($output_type eq 'gene') {
+        my $seq = $fai->fetch(
+            "$gene_ref->{chr}:$gene_ref->{start}-$gene_ref->{end}"
+        ) or die "Error fetching $gene_ref->{id}";
+        $seq = B2B::Seq->new($seq, $gene_ref->{id});
+        $seq->rev_com if ($strand < 0);
+        print $seq->as_fasta;
+        return 1;
+    }
+    my @transcripts = sort {$a cmp $b} keys %{ $gene_ref->{transcripts} };
+    TRANSCRIPT:
+    for my $t (@transcripts) {
+        my $t_ref = $gene_ref->{transcripts}->{$t};
+        my $part_type = $output_type eq 'transcript' ? 'exons' : 'cds';
+        my @segments = sort {$a->[0] <=> $b->[0]} @{ $t_ref->{$part_type} };
+        next TRANSCRIPT if (@segments < 1);
+        my $seq = B2B::Seq->new('', $t);
+        my $phase;
+        for (@segments) {
+            $seq .= $fai->fetch(
+                "$gene_ref->{chr}:$_->[0]-$_->[1]"
+            ) or die "Error fetching $gene_ref->{chr} $_->[0] $_->[1]";
+            if ($part_type eq 'cds') {
+                $phase = $_->[2] if (! defined $phase || $strand < 0);
+            }
+        }
+        $seq->rev_com if ($strand < 0);
+
+        if ($output_type eq 'cds') {
+            $seq->desc( "[phase:$phase]" );
+        }
+
+        if ($output_type eq 'protein') {
+            $seq->translate($phase);
+            $seq->{seq} =~ s/\*$// ; # strip stop codon if present
+            warn "bad protein seq $seq for $seq->{id}\n" if ($seq =~ /\*/);
+        }
+
+        print $seq->as_fasta;
+        next TRANSCRIPT;
+    } 
+}
+
+
+__END__
+
+=head1 NAME
+
+gff3_to_fa - extracts sequences in FASTA format given a GFF3 file and reference sequence
+
+=head1 VERSION
+
+This documentation refers to v0.3
+
+=head1 SYNOPSIS
+
+gff3_to_fa [--type I<gene|transcript|cds|protein> --verbose] --fasta I<input_file> --gff I<gff_file>
+
+=head1 DESCRIPTION
+
+B<gff3_to_fa> takes a feature file in GFF3 format and a reference FASTA sequence
+and prints out feature sequences in FASTA format. It can be used to extract
+gene (unspliced), transcript (spliced), CDS (protein-coding nucleotide) and
+protein (translated CDS) sequences from a compliant GFF3 file.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--gff> I<filename>
+
+Specify GFF3 feature file (required)
+
+=item B<--fasta> I<filename>
+
+Specify reference sequence file (required)
+
+=item B<--type> I<string>
+
+Type of sequence to output. Possible values are:
+    gene, transcript, CDS, protein (default: CDS)
+
+=item B<--verbose>
+
+Print various extra progress statements
+
+=item B<--help>
+
+Print this documentation
+
+=back
+
+=head1 DIAGNOSTICS
+
+=over
+
+=item B<Can't open <type> file for reading>
+
+This is a general error indicating that the script was unable to read
+the input file. Check your filename and syntax.
+
+=item B<missing ID>
+
+Certain feature types are required by the GFF3 standard (and this script)
+to have a unique "ID" attribute. This error indicates that the ID was missing
+or the attribute field is incorrectly formatted.
+
+=item B<missing parent>
+
+See "Missing ID"
+
+=item B<parent mismatch>
+
+The script requires child features to be grouped under the parent feature in line
+order. If a feature is not part of the current gene/transcript, this error is
+thrown. Please check your input file and use a "smart" sorting routine to sort
+your GFF3 file.
+
+=item B<missing <ID> sequence>
+
+The reference sequence ID from column 1 could not be found in the reference
+FASTA provided. Please check your input files.
+
+=item B<start > end>
+
+The GFF3 format (and this script) requires that the end coordinate be greater
+than or equal to the start coordinate regardless of strand, and a line was
+found that did not conform to this. Please check your GFF3 file.
+
+=back
+
+=head1 DEPENDENCIES
+
+A recent version of perl
+B2B::Seq
+Bio::DB::Sam
+
+=head1 BUGS AND LIMITATIONS
+
+The GFF3 file must be sorted such that parent features come before child
+features (order of child features is not important).
+
+Please submit bug reports to the
+author (see below).
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy *at* base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2014 Jeremy Volkening
+All rights reserved
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

@@ -1,0 +1,157 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use B2B::Seq::Fastx;
+use Getopt::Long;
+use List::MoreUtils qw/first_index/;
+
+my $fn_adapts;
+my $seed_len    = 20;
+my $min_frac    = 0.001;
+my $report_frac = 0.5;
+my $min_samples = 10000;
+my $max_samples = 100000;
+
+GetOptions (
+    'adapters=s'    => \$fn_adapts,
+    'seed_len=i'    => \$seed_len,
+    'min_frac=f'    => \$min_frac,
+    'report_frac=f' => \$report_frac,
+    'min_samples=i' => \$min_samples,
+    'max_samples=i' => \$max_samples,
+);
+
+
+die "missing adapter filename" if (! defined $fn_adapts);
+
+# read in adapter sequences
+my %adapts;
+open my $tbl, '<', $fn_adapts;
+while (my $line = <$tbl>) {
+    chomp $line;
+    my ($id,$seq) = split "\t", $line;
+    $seq = uc $seq;
+    next if ($seq =~ /[^ATGC]/); # skip non-standard seqs
+
+    my $rc = reverse $seq;
+    $rc =~ tr/ATGC/TACG/;
+
+    my $l = length $seq;
+    if ($l < $seed_len) {
+        warn "adapter shorter than probe, shortening seed length to $l\n";
+        $seed_len = $l;
+    }
+    
+    if (defined $adapts{$seq}) {
+        $adapts{$seq} .= "|$id";
+    }
+    else {
+        $adapts{$seq} = $id;
+    }
+    if (defined $adapts{$rc}) {
+        $adapts{$rc} .= "|$id RC";
+    }
+    else {
+        $adapts{$rc} = "$id RC";
+    }
+}
+close $tbl;
+
+my %index;
+for my  $seq (keys %adapts) {
+    my $l = length $seq;
+    my $pos = 0;
+    while ($pos <= $l - $seed_len) {
+        my $kmer = substr $seq, $pos, $seed_len;
+        $index{$kmer} = [] if (! defined $index{$kmer});
+        push @{ $index{$kmer} }, [$seq, $pos];
+        ++$pos;
+    }
+}
+
+my %votes;
+my $read_count = 0;
+my $parser = B2B::Seq::Fastx->new;
+
+my $coeff = ($max_samples - $min_samples)/($min_frac-0.2);
+
+SEQ:
+while (my $seq = $parser->next_seq) {
+
+    $seq->{seq} = uc $seq;
+    ++$read_count;
+    my $seq_len = length $seq;
+    my $best_match_len = 0;
+    my @best_matches = ();
+
+    my $pos = 0;
+    SEED:
+    while ($pos <= $seq_len - $seed_len) {
+        
+        my $seed = substr $seq, $pos, $seed_len;
+
+        HIT:
+        for my $hit ( @{ $index{$seed} } ) {
+
+            if ($pos > 0) {
+                next HIT if ($hit->[1] > 0);
+                my $adapt = $hit->[0];
+                my $seq_match = substr $seq, $pos, length($adapt);
+                my $hit_match = substr $adapt, 0, length($seq_match);
+                my $match_len = length($hit_match);
+                next HIT if ($match_len < $best_match_len);
+                next HIT if ($seq_match ne $hit_match);
+                @best_matches = () if ($match_len > $best_match_len);
+                $best_match_len = $match_len;
+                my $type = $match_len eq length($adapt) ? 'F' : 'R';
+                push @best_matches, [$adapt, $type];
+                
+            }
+            else {
+                my $adapt = $hit->[0];
+                my $hit_match = substr $adapt, $hit->[1];
+                my $seq_match = substr $seq, $pos, length($hit_match);
+                my $match_len = length($seq_match);
+                next HIT if ($match_len < $best_match_len);
+                next HIT if ($seq_match ne $hit_match);
+                @best_matches = () if ($match_len > $best_match_len);
+                $best_match_len = $match_len;
+                my $type = $match_len eq length($adapt) ? 'F' : 'L';
+                push @best_matches, [$adapt, $type];
+            }
+
+        } 
+        ++$pos;
+
+    }
+
+    if ($best_match_len > 0) {
+        ++$votes{$_->[0]}->{all} for (@best_matches);
+        ++$votes{$_->[0]}->{$_->[1]} for (@best_matches);
+        next SEQ if ($read_count < $min_samples);
+        for my $m (@best_matches) {
+            last SEQ if ($read_count >=  $coeff * ($votes{$m->[0]}->{all}/$read_count - 0.2) + $min_samples);
+        }
+    }
+    last SEQ if ($read_count >= $max_samples);
+}
+
+# count votes and report
+my @sorted = sort {$votes{$b}->{all} <=> $votes{$a}->{all}} keys %votes;
+my @merged;
+my $max_count = 0;
+for (0..$#sorted) {
+    my $seq = $sorted[$_];
+    my $name = $adapts{$seq};
+    my $vote_count  = $votes{$seq}->{all};
+    my $left  = $votes{$seq}->{L} // 0;
+    my $full  = $votes{$seq}->{F} // 0;
+    my $right = $votes{$seq}->{R} // 0;
+    my $frac        = $vote_count / $read_count;
+    last if ($frac < $min_frac);
+    $max_count = $vote_count if ($_ == 0);
+    last if ($vote_count < $max_count * $report_frac);
+    print "$name\t$seq\t$vote_count\t$frac\t$left\t$full\t$right\t$read_count\n";
+}

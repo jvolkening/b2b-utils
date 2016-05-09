@@ -1,0 +1,413 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use SVG;
+use Fatal qw/open close/;
+use Pod::Usage;
+
+
+#---------------------------------------------------------------------------#
+# Command line option parsing
+#---------------------------------------------------------------------------#
+
+my $in_file  = '-';
+my $out_file = '-';
+my $out_fmt  = 'svg';
+my $title   = 'Read quality summary';
+my $x_tic    = 5;
+my $y_tic    = 5;
+
+my $options_okay = GetOptions (
+    'in=s'     => \$in_file,
+    'out=s'    => \$out_file,
+    'outfmt=s' => \$out_fmt,
+    'title=s'  => \$title,
+    'xtics=i'  => \$x_tic,
+    'ytics=i'  => \$y_tic,
+    'man'      => sub{ pod2usage(-verbose => 2); },
+    'help'      => sub{ pod2usage(-verbose => 2); },
+);
+
+$out_fmt = lc $out_fmt;
+print_usage('Syntax error: unknown option') if !$options_okay;
+print_usage('Syntax error: please specify input and output files')
+    if $in_file eq '-';
+print_usage('Syntax error: please specify input and output files')
+    if $out_file eq '-';
+print_usage('Syntax error: invalid value for output format') if $out_fmt !~ /(?:svg|png)/;
+
+
+#---------------------------------------------------------------------------#
+# Hard-coded layout values
+#---------------------------------------------------------------------------#
+
+my $bar_width    = 4;
+my $bar_spacing  = 2;
+my $qual_height  = 260;
+my $freq_height  = 120;
+my $label_width  = 12;
+my $title_height = 30;
+my $axis_width   = 24;
+my $tic_size     = 5;
+
+
+#---------------------------------------------------------------------------#
+# Actual processing
+#---------------------------------------------------------------------------#
+
+# Get read length
+my $read_length;
+open my $table, '<', $in_file;
+my $ignore = <$table>; # Discard header line
+while (my $line = <$table>) {
+    if ($line =~ /^(\d+)\s/) {
+        $read_length = $1;
+    }
+}
+
+#...and reset filehandle for future use
+seek $table, 0, 0;
+$ignore = <$table>;
+
+# Set full dimiensions based on hard-coded params
+my $width  = $label_width + ($axis_width * 2)
+           + ($bar_width + $bar_spacing) * $read_length + $bar_spacing;
+my $height = $title_height + $qual_height
+           + $axis_width + $label_width + $freq_height;
+
+# Initialize SVG and add standard elements
+my $svg = SVG->new(
+    width => $width,
+    height => $height,
+);
+
+my $boxplot = $svg->group(
+    id    => 'boxplot',
+    style => {
+        'font-size'    => '9px',
+        'fill'         => '#000000',
+        'font-family'  => 'sans',
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+    },
+);
+
+my $distribution = $svg->group(
+    id    => 'distribution',
+    style => {
+        'font-size'    => '9px',
+        'fill'         => '#000000',
+        'font-family'  => 'sans',
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+    },
+);
+
+# Add main title
+$boxplot->text(
+    x      => $width/2,
+    y      => $title_height - 10,
+    -cdata => $title,
+    style  => {
+        'text-anchor'  => 'middle',
+        'stroke-width' => 0,
+        'font-size'    => '11px',
+    },
+);
+
+# Calculate and add axes
+my $x1 = $label_width + $axis_width;
+my $x2 = $x1 - $tic_size;
+my $x3 = $width - $axis_width;
+my $x4 = $x3 + $tic_size;
+my $x5 = base2coord(1);
+my $x6 = base2coord($read_length);
+my $y1 = qual2coord(0);
+my $y2 = qual2coord(45);
+my $y3 = $y1 + $tic_size*2;
+
+# First, left and right y-axes
+my $path_def_left  = "M $x2 $y1 L $x1 $y1 L $x1 $y2 L $x2 $y2";
+my $path_def_right = "M $x4 $y1 L $x3 $y1 L $x3 $y2 L $x4 $y2";
+for (my $i = 0;$i <= 45; $i+=$y_tic) {
+    my $y = qual2coord($i);
+    if ($i > 0 && $i < 45) {
+        $path_def_left  .= " M $x2 $y L $x1 $y";
+        $path_def_right .= " M $x4 $y L $x3 $y";
+    }
+    $boxplot->text(
+        x      => $x2 - 2,
+        y      => $y + 2,
+        -cdata => $i,
+        style  => {
+            'text-anchor' => 'end',
+            'stroke-width' => 0,
+        },
+    );
+    $boxplot->text(
+        x      => $x4 + 2,
+        y      => $y + 2,
+        -cdata => $i,
+        style  => {
+            'text-anchor'  => 'start',
+            'stroke-width' => 0,
+        },
+    );
+}
+$boxplot->path(
+    d     => $path_def_left,
+    style => {
+        'fill-opacity' => 0,
+    },
+);
+$boxplot->path(
+    d     => $path_def_right,
+    style => {
+        'fill-opacity' => 0,
+    },
+);
+
+#...and then x-axis
+my $path_def_lower = "M $x5 $y3 L $x5 $y1 L $x6 $y1 L $x6 $y3";
+my $label_x = $label_width;
+my $label_y = qual2coord(22);
+$boxplot->text(
+    x         => $label_x,
+    y         => $label_y,
+    -cdata    => 'phred quality score',
+    transform => "rotate(-90 $label_x,$label_y)",
+    style     => {
+        'text-anchor'  => 'middle',
+        'stroke-width' => 0,
+    },
+);
+for (my $i = $x_tic;$i < $read_length; $i+=$x_tic) {
+    my $x = base2coord($i);
+    $path_def_lower .= " M $x $y3 L $x $y1";
+    $boxplot->text(
+        x      => $x + 2,
+        y      => $y3,
+        -cdata => $i,
+        style  => {
+            'text-anchor'  => 'start',
+            'stroke-width' => 0,
+        },
+    );
+}
+$boxplot->path(
+    d     => $path_def_lower,
+    style => {
+        'fill-opacity' => 0,
+    }
+);
+$boxplot->text(
+    x      => base2coord($read_length/2),
+    y      => $title_height + $qual_height + $axis_width + $label_width - 12,
+    -cdata => 'base position in read',
+    style  => {
+        'text-anchor'  => 'middle',
+        'stroke-width' => 0,
+    },
+);
+
+# Draw legend for distribution plot
+my @bases = qw/A C G T N/;
+my %base_colors = (
+    'A' => '#21C22E',
+    'C' => '#2441B6',
+    'G' => '#000000',
+    'T' => '#D52E1F',
+    'N' => '#AAAAAA',
+);
+my $y_loc = 5;
+for my $base (@bases) {
+    $distribution->rectangle(
+        x      => $label_width + $axis_width - 14,
+        y      => freq2coord($y_loc),
+        width  => 12,
+        height => 15,
+        style  => {
+            'fill' => $base_colors{$base},
+        },
+    );
+    $distribution->text(
+        x      => $label_width + $axis_width -8,
+        y      => freq2coord($y_loc) + 11,
+        -cdata => $base,
+        style  => {
+            'fill'         => '#FFFFFF',
+            'text-anchor'  => 'middle',
+            'stroke-width' => 0,
+        },
+    );
+    $y_loc += 20;
+}
+$label_x = $label_width;
+$label_y = freq2coord(50);
+$distribution->text(
+    x         => $label_x,
+    y         => $label_y,
+    -cdata    => 'relative base frequency',
+    transform => "rotate(-90 $label_x,$label_y)",
+    style     => {
+        'text-anchor'  => 'middle',
+        'stroke-width' => 0,
+    },
+);
+
+# Process each line/base position from file and add to plots
+while (my $line = <$table>) {
+    chomp $line;
+    next if ($line =~ /^\s+$/); # ignore empty lines
+    my @parts = split "\t", $line;
+    my $base = $parts[0];
+    my $Q1 = $parts[6];
+    my $Q3 = $parts[8];
+    my $median = $parts[7];
+    my $l_whisker = $parts[11];
+    my $u_whisker = $parts[10];
+    my $total = $parts[1];
+
+    my $x1 = base2coord($base);
+    my $x2 = $x1 - $bar_width/2;
+    my $x3 = $x2 + $bar_width;
+    my $y1 = qual2coord($Q1);
+    my $y2 = qual2coord($Q3);
+    my $y3 = qual2coord($l_whisker);
+    my $y4 = qual2coord($u_whisker);
+    my $y5 = qual2coord($median);
+
+    my $y6 = freq2coord(0);
+    my $y7 = freq2coord(100);
+
+    my @base_counts = @parts[12..16];
+    my @base_freqs = map {$_ / $total * 100} @base_counts;
+
+
+    # Draw quality box and whiskers
+    $boxplot->path(
+        d     => "M $x2 $y3 L $x3 $y3 M $x1 $y3 "
+               . "L $x1 $y4 M $x2 $y4 L $x3 $y4",
+        style => {
+            'fill-opacity' => 0,
+        }
+    );
+    $boxplot->path(
+        d     => "M $x2 $y1 L $x2 $y2 L $x3 $y2 L $x3 $y1 z",
+        style => {
+            'fill' => '#FF0000',
+        },
+    );
+    $boxplot->path(
+        d => "M $x2 $y5 L $x3 $y5",
+    );
+
+    # Draw base distribution plot
+    my $cumulative_freq = 0;
+    for (0..3) {
+        my $y8 = freq2coord($cumulative_freq);
+        $cumulative_freq += $base_freqs[$_];
+        my $y9 = freq2coord($cumulative_freq);
+        $distribution->path(
+            d     => "M $x2 $y8 L $x2 $y9 L $x3 $y9 L $x3 $y8 z",
+            style => {
+                'fill'         => $base_colors{ $bases[$_] },
+                'stroke-width' => 0,
+            },
+        );
+    }
+    $distribution->path(
+        d     => "M $x2 $y6 L $x2 $y7 L $x3 $y7 L $x3 $y6 z",
+        style => {
+            'fill-opacity' => 0,
+        },
+    );
+}
+
+close $table;
+
+# Write SVG to file
+open my $out, '>', $out_file;
+print {$out} $svg->xmlify;
+close $out;
+exit;
+
+#---------------------------------------------------------------------------#
+# Subroutines
+#---------------------------------------------------------------------------#
+
+sub base2coord {
+    my $val = shift;
+    my $coord = $label_width + $axis_width
+              + ($bar_width + $bar_spacing)*$val - $bar_width/2;
+    return int($coord);
+}
+
+sub qual2coord {
+    my $val = shift;
+    my $coord = $title_height + $qual_height - $val/45*$qual_height;
+    return int($coord);
+}
+
+sub freq2coord {
+    my $val = shift;
+    my $coord = $height - $freq_height + $val/100*$freq_height;
+    return int($coord);
+}
+
+sub print_usage {
+    my $string = shift;
+    pod2usage(
+        -msg     => $string,
+        -verbose => 1,
+    );
+    exit;
+}
+
+__END__
+
+=head1 NAME
+
+illumina_read_qc - Generates QC graphic from fastx_quality_stats output
+
+=head1 SYNOPSIS
+
+illumina_read_qc --in <input_file> --out <output_file> [--title <string>] [--outfmt svg|png] [--xtics <integer>] [--ytics <integer>]
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--in>
+
+Specify file from which to read data. This should be the output from fastx_quality_stats from the fastx-toolkit.
+
+=item B<--out>
+
+Specify file to which to write output, either in SVG or PNG format (see --outfmt)
+
+=item B<--title>
+
+Provide a title which will be printed at the top of the graphic. Use quotes around a string containing spaces.
+
+=item B<--outfmt>
+
+Specify the format of the output. Must be either 'svg' or 'png'.
+
+=item B<--xtics>
+
+Specify spacing for tic marks on x-axis of output. Tic marks will be spaced this many base positions apart.
+
+=item B<--ytics>
+
+Specify spacing for tic marks on y-axis of output. Tic marks will be spaced this far apart.
+
+=back
+
+=head1 DESCRIPTION
+
+This script is a replacement for the plotting functionality in the fastx-toolkit, which doesn't always produce readable output. Most tweaking of the layout can be done only by changing hard-coded values, which are however provided as scalars near the top of the code.
+
+=cut

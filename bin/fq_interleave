@@ -1,0 +1,125 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use Fatal qw/open close/;
+use Pod::Usage;
+use B2B::Seq::Fastx;
+
+use constant NAME => 'fq_interleave';
+use constant VERSION => '0.2';
+
+#---------------------------------------------------------------------------#
+# Command line option parsing
+#---------------------------------------------------------------------------#
+
+my $rename = 0;
+my $check  = 0;
+
+my $options_okay = GetOptions(
+    'rename'     => \$rename,
+    'check'      => \$rename,
+    'help'       => sub{ pod2usage(-verbose => 2); },
+);
+
+# check that two valid filenames are given
+pod2usage(-msg => 'Error: invalid or missing input filesnames', -verbose => 1)
+    if (@ARGV != 2 || ! -r $ARGV[0] || ! -r $ARGV[1]);
+
+
+my $parser1 = B2B::Seq::Fastx->new($ARGV[0]);
+my $parser2 = B2B::Seq::Fastx->new($ARGV[1]);
+
+while (my $read1 = $parser1->next_seq) {
+
+    my $read2 = $parser2->next_seq or die "Read count mismatch";
+    if ($rename || $check) {
+
+        my $base1 = $read1->id;
+        $base1 =~ s/(?:\/[12])?(?:\s.+$|$)//;
+        my $base2 = $read2->id;
+        $base2 =~ s/(?:\/[12])?(?:\s.+$|$)//;
+
+        if ($check) {
+            die "read pair mismatch ($base1)" if ($base1 ne $base2);
+        }
+
+        if ($rename) {
+            $read1->id( $base1 . '/1' );
+            $read2->id( $base2 . '/2' );
+        }
+
+    }
+    print $read1->as_fastq, $read2->as_fastq;
+
+}
+
+die "Read count mismatch" if ($parser2->next_seq); # should be at end
+
+exit;
+
+__END__
+
+=head1 NAME
+
+fq_interleave - interleave paired FASTQ files
+
+=head1 VERSION
+
+This documentation refers to v0.2
+
+=head1 SYNOPSIS
+
+fq_interleave [--check --rename] I<reads1> I<reads2> > I<interleaved_reads>
+
+=head1 DESCRIPTION
+
+A simple script to interleave two paired FASTQ files (alternate
+forward/reverse reads in a single output file). This requires that the two
+files correspond exactly in terms of number and order of the paired reads
+('--check' will make sure of this and throw an error otherwise). Interleaved
+FASTQ is sent to STDOUT.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--check>
+
+Check each pair of input reads to make sure names match (slower but more rigorous)
+
+=item B<--rename>
+
+Renames forward and reverse reads to follow the ".../1" and .../2" naming
+convention (required for some programs). Everything at and after the first
+whitespace or end-of-line is replaced with the corresponding tag above.
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+As yet undiscovered. Please reports bugs by email to the author.
+
+=head1 AUTHOR
+
+Jeremy Volkening <jeremy *at* base2bio.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2014 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

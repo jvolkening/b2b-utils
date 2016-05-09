@@ -1,0 +1,640 @@
+#!/usr/bin/perl
+
+# plot_coverage v0.3
+# c2014 Jeremy Volkening @ BASE2BIO
+# last updated 2014-04-06
+
+use strict;
+use warnings;
+use Fatal qw/open close/;
+use Getopt::Long;
+use List::Util qw/min max sum/;
+use Pod::Usage;
+use B2B::Seq::Fastx;
+use SVG;
+
+# Command line option parsing
+my $fn_bg            = '-';
+my $fn_fa            = '-';
+my $out_file         = '-';
+my $feat_file;
+my $out_fmt          = 'svg';
+my $title            = 'Coverage summary';
+my $window_size      = 1000;
+my $img_height       = 300;
+my $img_width        = 600;
+my $scale_step_size  = 100000;
+my $gc_correct       = 0;
+my $bin_count        = 10;
+
+my $options_okay = GetOptions (
+    'bg=s'        => \$fn_bg,
+    'fa=s'        => \$fn_fa,
+    'out=s'       => \$out_file,
+    'features=s'  => \$feat_file,
+    'format=s'    => \$out_fmt,
+    'title=s'     => \$title,
+    'xscale=i'    => \$scale_step_size,
+    'window=i'    => \$window_size,
+    'width=i'     => \$img_width,
+    'height=i'    => \$img_height,
+    'gc_correct'  => \$gc_correct,
+    'bin_count=i' => \$bin_count,
+    'man'         => sub{ pod2usage(-verbose => 2); },
+    'help'        => sub{ pod2usage(-verbose => 2); },
+);
+
+$out_fmt = lc $out_fmt;
+print_usage('Syntax error: unknown option') if !$options_okay;
+print_usage("Error: input file $fn_bg can\'t be read")
+    if ($fn_bg ne '-' && ! -r $fn_bg);
+print_usage("Error: feature file $feat_file can\'t be read")
+    if (defined $feat_file && ! -r $feat_file);
+print_usage('Syntax error: invalid value for output format') if $out_fmt !~ /(?:svg)/;
+
+# set and calculate layout dimensions
+use constant TITLE_HEIGHT => 20;
+use constant MARGIN       => 20; 
+use constant LABEL_WIDTH  => 90;
+use constant MAP_HEIGHT   => 35;
+my $remaining = $img_height - TITLE_HEIGHT - MARGIN*3;
+$remaining -= MAP_HEIGHT if (defined $feat_file);
+my $gc_height  = $remaining/3;
+my $cov_height =   $remaining - $gc_height;
+my $gc_top     = TITLE_HEIGHT + MARGIN;
+my $cov_top    = TITLE_HEIGHT + MARGIN*2 + $gc_height;
+my $plot_width = $img_width - LABEL_WIDTH - 2*MARGIN;
+my $plot_start = LABEL_WIDTH + MARGIN;
+
+# initialize SVG and add standard elements
+my $svg = SVG->new(
+    width  => $img_width,
+    height => $img_height,
+    style => {
+        'fill'      => '#000000',
+        'font-family' => 'sans',
+    },
+);
+my $cov_plot = $svg->group(
+    id => 'cov_plot',
+);
+my $gc_plot = $svg->group(
+    id => 'gc_plot',
+);
+my $map_plot = $svg->group(
+    id => 'map_plot',
+) if (defined $feat_file);
+
+# populate feature table
+my @feats = ();
+if (defined $feat_file) {
+    open my $tbl, '<', $feat_file;
+    while (my $line = <$tbl>) {
+        chomp $line;
+        my ($name,$start,$end) = split "\t", $line;
+        die "bad feature file file: $line" if (! defined $name);
+        die "bad feature file file: $line" if (! defined $start || $start !~ /^\d+$/);
+        die "bad feature file file: $line" if (! defined $end   || $end   !~ /^\d+$/);
+        push @feats, [$name,$start,$end];
+    }
+    close $tbl;
+}
+
+# read seq
+my $parser = B2B::Seq::Fastx->new($fn_fa);
+my $seq = $parser->next_seq->seq;
+
+
+# read depth data from bedgraph
+open my $bg, '<', $fn_bg;
+my $seq_name;
+my $upper = $window_size;
+my @depths;
+my $weight_sum = 0;
+LINE:
+while (my $line = <$bg>) {
+    next LINE if ($line =~ /^track\s/);
+    chomp $line;
+    my ($id,$start0,$end1,$depth) = split "\t", $line;
+    $seq_name = $id if (! defined $seq_name);
+    die "Can't handle multiple sequences\n" if ($id ne $seq_name);
+    while ($upper < $end1) {
+        $weight_sum += $depth * ($upper - $start0);
+        push @depths, $weight_sum/$window_size;
+        $weight_sum = 0;
+        $start0 = $upper;
+        $upper += $window_size;
+    }
+
+    $weight_sum += $depth * ($end1 - $start0);
+}
+close $bg;
+
+my @x = map {($_-0.5)*$window_size} 1..int(length($seq)/$window_size);
+
+
+my @gc;
+my $i = 0;
+while ($i < length($seq)-$window_size) {
+    my $sub = substr $seq, $i, $window_size;
+    my $gc_sum = $sub =~ tr/GCgc//;
+    my $total  = $sub =~ tr/ATGCatgc//;
+    push @gc, $total > 0 ? $gc_sum/$total*100 : 0;
+    $i += $window_size;
+}
+#my $l_gc = scalar @gc;
+#my $l_x  = scalar @x;
+#my $l_d  = scalar @depths;
+#print "$l_x\n$l_d\n$l_gc\n";
+#exit;
+#for (0..$#x) {
+    #print "$x[$_]\t$gc[$_]\t$depths[$_]\n";
+#}
+#exit;
+
+# correct coverage for GC if requested
+# use binning of GC values for fit
+if ($gc_correct) {
+
+    my @bins;
+    my $lower = min @gc;
+    my $upper = max @gc;
+    my $med_depth = median(@depths);
+
+    for (0..$#gc) {
+        my $bin = int(($gc[$_] - $lower)/($upper - $lower)*$bin_count);
+        $bin -= 1 if ($bin == $bin_count);
+        $bins[$bin] = [] if (! defined $bins[$bin]);
+        push @{ $bins[$bin] }, $depths[$_];
+    }
+    my @mids;
+    for (@bins) {
+        push @mids, median(@{$_});
+    }
+    my @corrected;
+    for (0..$#gc) {
+        my $bin = int(($gc[$_] - $lower)/($upper - $lower)*$bin_count);
+        $bin -= 1 if ($bin == $bin_count);
+        my $new = $depths[$_]/$mids[$bin]*$med_depth;
+        push @corrected, $new;
+    }
+    @depths = @corrected;
+
+}
+
+# add title
+$svg->text(
+    x => $img_width/2,
+    y => 20,
+    style => {
+        'font-size' => '14px',
+        'text-anchor' => 'middle',
+    },
+    -cdata => $title,
+);
+
+# calculate x values
+my $x_min = 1;
+my $x_max = length($seq);
+my @canvas_x = map { actual_to_canvas($_,0,$x_max,$plot_width,$plot_start) } @x;
+
+
+#######################################
+# plot GC
+#######################################
+
+
+my $min = min(@gc);
+my $max = max(@gc);
+my $range = $max - $min;
+
+# plot y axis
+my $step_size = int($range/5);
+my $mid = int($min+$range/2);
+my @steps = ($mid);
+for (1..2) {
+    push @steps, $mid + $step_size*$_;
+    unshift @steps, $mid - $step_size*$_;
+}
+my @steps_y = map { actual_to_canvas($_,$max,$range,$gc_height,$gc_top) } @steps;
+my $y_tmp = $gc_top + $gc_height;
+my $path = "M $plot_start $gc_top L $plot_start $y_tmp";
+for (0..$#steps) {
+    my $x1 = $plot_start-5;
+    my $x2 = $plot_start;
+    $path .= " M $x1 $steps_y[$_] L $x2 $steps_y[$_]";
+    $gc_plot->text(
+        x => $plot_start - 7,
+        y => $steps_y[$_] + 2,
+        style => {
+            'font-size' => '8px',
+            'text-anchor' => 'end',
+        },
+        -cdata => $steps[$_],
+    );
+}
+$gc_plot->tag(
+    'path',
+    'd' => $path,
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+        'fill-opacity' => 0,
+    },
+);
+
+
+my @canvas_y = map { actual_to_canvas($_,$max,$range,$gc_height,$gc_top) } @gc;
+$path = "M $canvas_x[0] $canvas_y[0]";
+for (1..$#canvas_x) {
+    $path .= " L $canvas_x[$_] $canvas_y[$_]";
+}
+$gc_plot->tag(
+    'path',
+    'd' => $path,
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#0033BE',
+        'fill-opacity' => 0,
+    },
+);
+
+my $gc_overall = round( ($seq =~ tr/GCgc//)/length($seq)*100 ,1);
+my $canvas_med = actual_to_canvas($gc_overall,$max,$range,$gc_height,$gc_top);
+my $x_tmp = $plot_start + $plot_width;
+$gc_plot->tag(
+    'path',
+    'd' => "M $plot_start $canvas_med L $x_tmp, $canvas_med",
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+        'fill-opacity' => 0,
+        'stroke-dasharray' => '6,6',
+    },
+);
+$gc_plot->text(
+    x => 0,
+    y => $gc_top + $gc_height/2 - 8,
+    style => {
+        'font-size' => '10px',
+        'text-anchor' => 'start',
+    },
+    -cdata => "Percent GC", 
+);
+$gc_plot->text(
+    x => 0,
+    y => $gc_top + $gc_height/2 + 8,
+    style => {
+        'font-size' => '10px',
+        'text-anchor' => 'start',
+    },
+    -cdata => "overall: $gc_overall\%", 
+);
+
+# plot genome scalebar
+@steps = ();
+for (my $i = 0; $i < $x_max; $i += $scale_step_size) {
+    push @steps, $i;
+}
+my @steps_x = map { actual_to_canvas($_,0,$x_max,$plot_width,$plot_start) } @steps;
+$x_tmp = $plot_start + $plot_width;
+my $y = $gc_top+$gc_height;
+$path = "M $plot_start $y L $x_tmp $y";
+for (0..$#steps) {
+    my $y2 = $y+5;
+    $path .= " M $steps_x[$_] $y L $steps_x[$_] $y2";
+    my $label = $steps[$_]/1000 . 'k';
+    $gc_plot->text(
+        x => $steps_x[$_] + 2,
+        y => $y + 15,
+        style => {
+            'font-size' => '8px',
+            'text-anchor' => 'middle',
+        },
+        -cdata => $label,
+    );
+}
+$gc_plot->tag(
+    'path',
+    'd' => $path,
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+        'fill-opacity' => 0,
+    },
+);
+
+    
+
+
+#######################################
+# plot coverage 
+#######################################
+
+my $cov_overall = round(median(@depths),0);
+my $cov_cutoff = $cov_overall * 4;
+@depths = map {$_ > $cov_cutoff ? $cov_cutoff : $_} @depths;
+
+#$min = min(@depths);
+$min = 0;
+$max = max(@depths)*1.1;
+$range = $max - $min;
+
+# plot y axis
+$step_size = int($range/7);
+$mid = int($min+$range/2);
+@steps = ();
+for (my $i = 0; $i < $max; $i += $step_size) {
+    push @steps, $i;
+}
+@steps_y = map { actual_to_canvas($_,$max,$range,$cov_height,$cov_top) } @steps;
+$y_tmp = $cov_top + $cov_height;
+$path = "M $plot_start $cov_top L $plot_start $y_tmp";
+for (0..$#steps) {
+    my $x1 = $plot_start-5;
+    my $x2 = $plot_start;
+    $path .= " M $x1 $steps_y[$_] L $x2 $steps_y[$_]";
+    $cov_plot->text(
+        x => $plot_start - 7,
+        y => $steps_y[$_] + 2,
+        style => {
+            'font-size' => '8px',
+            'text-anchor' => 'end',
+        },
+        -cdata => $steps[$_],
+    );
+}
+$cov_plot->tag(
+    'path',
+    'd' => $path,
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+        'fill-opacity' => 0,
+    },
+);
+
+
+@canvas_y = map { actual_to_canvas($_,$max,$range,$cov_height,$cov_top) } @depths;
+$path = "M $canvas_x[0] $canvas_y[0]";
+for (1..$#canvas_x) {
+    $path .= " L $canvas_x[$_] $canvas_y[$_]";
+}
+$cov_plot->tag(
+    'path',
+    'd' => $path,
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#FF0000',
+        'fill-opacity' => 0,
+    },
+);
+
+$canvas_med = actual_to_canvas($cov_overall,$max,$range,$cov_height,$cov_top);
+my $double     = actual_to_canvas($cov_overall*2,$max,$range,$cov_height,$cov_top);
+my $half     = actual_to_canvas($cov_overall/2,$max,$range,$cov_height,$cov_top);
+$x_tmp = $plot_start + $plot_width;
+$cov_plot->tag(
+    'path',
+    'd' => "M $plot_start $canvas_med L $x_tmp, $canvas_med",
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+        'fill-opacity' => 0,
+        'stroke-dasharray' => '4,4',
+    },
+);
+$cov_plot->tag(
+    'path',
+    'd' => "M $plot_start $half L $x_tmp, $half",
+    style => {
+        'stroke-width' => .5,
+        'stroke'       => '#999999',
+        'fill-opacity' => 0,
+        'stroke-dasharray' => '4,4',
+    },
+);
+$cov_plot->tag(
+    'path',
+    'd' => "M $plot_start $double L $x_tmp, $double",
+    style => {
+        'stroke-width' => .5,
+        'stroke'       => '#999999',
+        'fill-opacity' => 0,
+        'stroke-dasharray' => '4,4',
+    },
+) if ($max > $double*2);
+$cov_plot->text(
+    x => 0,
+    y => $cov_top + $cov_height/2 - 8,
+    style => {
+        'font-size' => '10px',
+        'text-anchor' => 'start',
+    },
+    -cdata => "Fold coverage", 
+);
+$cov_plot->text(
+    x => 0,
+    y => $cov_top + $cov_height/2 + 8,
+    style => {
+        'font-size' => '10px',
+        'text-anchor' => 'start',
+    },
+    -cdata => "median: $cov_overall" . 'X', 
+);
+
+# plot genome scalebar
+@steps = ();
+for (my $i = 0; $i < $x_max; $i += $scale_step_size) {
+    push @steps, $i;
+}
+@steps_x = map { actual_to_canvas($_,0,$x_max,$plot_width,$plot_start) } @steps;
+$x_tmp = $plot_start + $plot_width;
+$y = $cov_top+$cov_height;
+$path = "M $plot_start $y L $x_tmp $y";
+for (0..$#steps) {
+    my $y2 = $y+5;
+    $path .= " M $steps_x[$_] $y L $steps_x[$_] $y2";
+    my $label = $steps[$_]/1000 . 'k';
+    $cov_plot->text(
+        x => $steps_x[$_] + 2,
+        y => $y + 17,
+        style => {
+            'font-size' => '8px',
+            'text-anchor' => 'middle',
+        },
+        -cdata => $label,
+    );
+}
+$cov_plot->tag(
+    'path',
+    'd' => $path,
+    style => {
+        'stroke-width' => 1,
+        'stroke'       => '#000000',
+        'fill-opacity' => 0,
+    },
+);
+
+
+#######################################
+# plot genome map 
+#######################################
+
+if (defined $feat_file) {
+    my $y1 = $img_height - MAP_HEIGHT/2;
+    my $y2 = $y1 - 7;
+    my $y3 = $y1 + 7;
+    my $map_path;
+    for my $feat (@feats) {
+        my ($name,@coords) = @{ $feat };
+        my ($x1,$x2) = map { actual_to_canvas($_,0,$x_max,$plot_width,$plot_start) } @coords;
+        my $text_x = ($x1 + $x2)/2;
+        $map_path .= "M $x1 $y2 L $x1 $y3 M $x1 $y1 L $x2 $y1 M $x2 $y2 L $x2 $y3 ";
+        $map_plot->text(
+            x => $text_x,
+            y => $y3 + 10,
+            style => {
+                'font-size' => '8px',
+                'text-anchor' => 'middle',
+            },
+            -cdata => $name,
+        );
+    }
+    $map_plot->tag(
+        'path',
+        'd' => $map_path,
+        style => {
+            'stroke-width' => 1,
+            'stroke'       => '#000000',
+            'fill-opacity' => 0,
+        },
+    );
+}
+    
+# write image data to file
+my $out = *STDOUT;
+if ($out_file ne '-') {
+    open my $fh, '>', $out_file;
+    $out = $fh;
+}
+print {$out} $svg->xmlify;
+
+exit;
+
+#######################################
+# subroutines
+#######################################
+
+sub actual_to_canvas {
+
+    my ($val, $base, $range, $h, $top) = @_;
+    my $scale_factor = $h/$range;
+    my $coord = int( $top + abs($base-$val)*$scale_factor );
+    return $coord;
+
+}
+
+sub median {
+    my @vals = @_;
+    my $size = @vals;
+    if ($size < 2) {
+        warn "set size too low\n";
+        return $vals[0];
+    }
+    @vals = sort {$a <=> $b} @vals;
+    my $median = $size%2 ? $vals[ int($size/2) ]
+                         : ($vals[$size/2-1] + $vals[$size/2])/2;
+    return $median;
+}
+
+sub calc_gc {
+    my @vals = @_;
+    die "Cannot process empty set" if (@vals < 1);
+    my $gc_count = grep {$_ =~ /[GC]/i} @vals;
+    my $gc_fraction = $gc_count / @vals * 100;
+    return $gc_fraction;
+}
+
+sub round {
+    my ($val,$points) = @_;
+    my $rounded = int($val*10**$points + 0.5)/10**$points;
+    return $rounded;
+}
+
+sub print_usage {
+    my $string = shift;
+    pod2usage(
+        -msg     => $string,
+        -verbose => 1,
+    );
+    exit;
+}
+
+__END__
+
+=head1 NAME
+
+plot_coverage - Generates plot of GC content and read coverage from samtools pileup file
+
+=head1 SYNOPSIS
+
+plot_coverage [options] --in <pileup_file> --out <svg_file>
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--in>
+
+Specify file from which to read data. This should be the output from the samtools mpileup command. Default is STDIN.
+
+=item B<--out>
+
+Specify file to which to write output, either in SVG or PNG format (see --outfmt). Default is STDOUT.
+
+=item B<--features>
+
+Specify file from which to read features. If specified, should be a 3-column tab-delimimited text file giving the name,
+start coordinate, and stop coordinate of features to be mapped (in that order).
+
+=item B<--title>
+
+Provide a title which will be printed at the top of the graphic. Use quotes around a string containing spaces.
+
+=item B<--format>
+
+Specify the format of the output. Must be either 'svg' or 'png'. Currently only 'svg' is supported.
+
+=item B<--xscale>
+
+Specify spacing for tic marks on x-axis of output. Tic marks will be spaced this many base positions apart.
+
+=item B<--window>
+
+Specify window size (in bp) for averaging %GC and coverage values
+
+=item B<--width>
+
+Specify width for output image (in pixels)
+
+=item B<--height>
+
+Specify height for output image (in pixels)
+
+=item B<--gc_correct>
+
+If specified, the program will attempt to "correct" GC bias in the sequencing coverage plot. This is done by fitting a regression line using OLS to the read depth vs GC content of each window and, for each, position, finding the ratio of the observed depth to the expected depth based on the regression and multiplying by the median depth across the genome. This method is not perfect since the GC/coverage plot is heteroskedastic for low- or high-GC organisms, but it tends to smooth things out and make detection of assembly issues easier.
+
+=item B<--bin_count>
+
+The number of equal-width bins used to calculate G/C correction (default: 10);
+
+=back
+
+=head1 DESCRIPTION
+
+This program takes a pileup file generated by samtools and plots GC content and coverage side-by-side. Currently, output is
+in SVG format (support for other formats is planned but not a priority).
+
+=cut

@@ -1,0 +1,569 @@
+#!/usr/bin/perl
+
+use 5.010;
+
+use strict;
+use warnings;
+
+use Archive::Tar;
+use DBI;
+use Digest::MD5;
+use English;
+use File::stat;
+use File::Temp qw/tempdir/;
+use Fcntl qw/:DEFAULT :flock :seek/;
+use Getopt::Long;
+use List::MoreUtils qw/any/;
+use Net::FTP;
+use Pod::Usage;
+use Sys::Syslog qw/:standard :macros/;
+
+use constant NAME    => 'ncbi_blast_update';
+use constant VERSION => '0.2';
+
+use constant SERVER => 'ftp.ncbi.nlm.nih.gov';
+use constant DB_DIR => '/blast/db';
+use constant SQL_DB => 'ncbi_blast.sqlite';
+use constant LOCKFILE => '/var/tmp/ncbi_blast_update.pid';
+
+my $passive       = 1;
+my $timeout       = 600;
+my $verbose       = 0;
+my $list_dbs      = 0;
+my $print_version = 0;
+my $print_help    = 0;
+my @dbs;
+my $local_dir     = '';
+my $delete_first  = 0;
+my $clean         = 0;
+my $log           = 0;
+my $tries         = 3;
+
+my $exit_status   = 0;
+
+my $res = GetOptions(
+    'passive'     => \$passive,
+    'timeout=i'   => \$timeout, # in seconds
+    'verbose'     => \$verbose,
+    'list'        => \$list_dbs,
+    'version'     => \$print_version,
+    'db=s'        => \@dbs,
+    'local=s'     => \$local_dir,
+    'clean'       => \$clean,
+    'syslog'      => \$log,
+    'attempts=i'  => \$tries,
+    'man'         => sub{ pod2usage(-verbose => 2); },
+    'help'        => sub{ pod2usage(-verbose => 2); },
+);
+
+# Handle version requests
+if ($print_version) {
+    print 'This is ' , NAME, ' v' , VERSION, "\n";
+    print "Copyright 2014 Jeremy Volkening (jeremy\@base2bio.com)\n";
+    print "Licensed under the GNU GPLv3\n";
+    exit;
+}
+
+# open syslog connection
+if ($log) {
+    openlog( NAME, 'perror', LOG_LOCAL1 )
+        or die "Error opening syslog connection: $!";
+}
+
+chdir $local_dir or log_die(LOG_ERR, "Can't cd to $local_dir");
+
+# check PID file to avoid multiple instances
+take_lock();
+
+$SIG{TERM} = $SIG{KILL} = $SIG{INT} = \&clean_quit;
+
+#open local sqlite db
+my $dbh = initialize_sql();
+
+# Parse comma-sep db string
+@dbs = split( /,/, join(',', @dbs) );
+
+# open connection
+my $ftp = Net::FTP->new(
+    SERVER,
+    Passive => $passive,
+    Timeout => $timeout,
+) or log_die( LOG_ERR, "Unable to connect: $@" );
+$ftp->login('anonymous','anonymous')
+    or log_die( LOG_ERR, "Unable to login: " . $ftp->message );
+$ftp->cwd(DB_DIR)
+    or log_die( LOG_ERR, "Unable to cwd: " . $ftp->message );
+$ftp->binary()
+    or log_die( LOG_ERR, "Unable to switch to binary: " . $ftp->message );
+
+# build directory structure
+my $remote_tree = parse_dir( $ftp->dir() );
+
+# check all requested DBs against remote tree
+for my $db (@dbs) {
+    if ( !any {$db eq $_} keys %{$remote_tree} ) {
+        warn "$db is not a valid database identifier.\n";
+        syslog(LOG_NOTICE, "Invalid database name: $db") if ($log);
+        $exit_status = 1;
+        $list_dbs = 1;
+    }
+}
+
+# handle request for DB list
+if ($list_dbs) {
+    my @sorted = sort {$a cmp $b} keys %{ $remote_tree };
+    print "\nAvailable databases:\n-------------------\n";
+    print "$_\n" for (@sorted);
+    print "-------------------\n";
+    clean_quit();
+}
+
+# Attempt to check and download requested databases
+for my $db (@dbs) {
+
+    eval {download($db) };
+
+    if ($@) {
+        warn $@ if ($verbose);
+        syslog(LOG_NOTICE, "Download of $db FAILED: $@") if ($log);
+        $exit_status = 2;
+    }
+
+}
+
+clean_quit();
+
+sub download {
+
+    my $db_name = shift;
+    my $temp_dir = tempdir( DIR => $local_dir, CLEANUP => 1 );
+    chdir $temp_dir; 
+
+    my %downloaded;   #track new downloaded .tgz files
+    my %decompressed; #track new decompressed files
+    my %matching;     #track unchanged files
+    my %orphaned;     #mark existing files for deletion during cleanup
+
+    my $existing_files = $dbh->selectall_hashref(
+        "SELECT name,md5 FROM compressed WHERE database=?",
+        'name',
+        {},
+        $db_name,
+    );
+        
+    my @indices = sort {$a <=> $b} keys %{ $remote_tree->{$db_name} };
+    my $new_downloads = 0; # track newly fetched files for log
+    eval {
+
+        local $SIG{TERM} = local $SIG{INT} = sub {
+            unlink glob '*';
+            chdir '..';
+            warn "removing $temp_dir\n" if ($verbose);
+            rmdir $temp_dir;
+            clean_quit();
+        };
+
+        # A race condition can occur when the remote fileset changes
+        # while we are in the midst of a download, resulting in a
+        # mismatched set of database files. In order to minimize the
+        # chance of this, we store the set of remote MD5 sums first
+        # which we will use to double-check our downloads for errors
+        # or changes to the remote file
+        for my $idx (@indices) {
+            my $file_name = $remote_tree->{$db_name}->{$idx}->[0];
+            my $md5_name  = $remote_tree->{$db_name}->{$idx}->[1];
+            my $md5 = fetch_md5( $md5_name );
+            $remote_tree->{$db_name}->{$idx}->[2] = $md5;
+            if (defined $existing_files->{$file_name} && $md5 eq
+              $existing_files->{$file_name}->{md5}) {
+                $matching{$file_name} = 1;
+            }
+        }
+
+        # collect list of orphaned files (without matching parents)
+        # to be dealt with later
+        my $files = $dbh->selectall_arrayref(
+            "SELECT * FROM files WHERE database=?", {}, $db_name
+        );
+        for (@{ $files }) {
+            $orphaned{$_->[0]} = 1 if (! defined $matching{ $_->[2] });
+        }
+
+        # Process all remote files
+        for my $idx (@indices) {
+
+            my $file_name = $remote_tree->{$db_name}->{$idx}->[0];
+
+            # download if missing or MD5 mismatch
+            if (! defined $matching{$file_name}) {
+
+                TRY:
+                for (1..$tries) {
+                    
+                    my $remaining = $tries - $_;
+                    eval {
+                        warn "fetching $file_name\n" if ($verbose);
+                        $ftp->get($file_name) or die "Error fetching $file_name: "
+                            . $ftp->message;
+                        open my $fh, '<', $file_name;
+                        binmode $fh;
+                        warn "calculating MD5 on $file_name\n" if ($verbose);
+                        my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
+                        close $fh;
+
+                        my $remote_md5 = $remote_tree->{$db_name}->{$idx}->[2];
+                        die "MD5 mismatch on downloaded $file_name ($remote_md5 v $md5)"
+                            if ($remote_md5 ne $md5);
+
+                        # If we get here, the file downloaded successfully
+                        $downloaded{$file_name} = $md5;
+                        ++$new_downloads;
+
+                        warn "decompressing $file_name\n" if ($verbose);
+                        my @files = split /\s+/, `tar -xvzf $file_name`
+                            or die "Error decompressing $file_name: $@";
+                        unlink $file_name;
+                        for my $file (@files) {
+                            open my $fh, '<', $file;
+                            binmode $fh;
+                            warn "calculating MD5 on $file\n" if ($verbose);
+                            my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
+                            close $fh;
+                            $decompressed{$file} = [$file_name,$md5];
+                        }
+                    };
+                    if ($@) {
+                        my $error = $@;
+                        unlink $file_name if (-e $file_name);
+                        die "Failed to download $file_name" if ($remaining < 1);
+                        next TRY;
+                    }
+                    last TRY;
+                }
+            }
+
+            # if matching file exists, hard link all decompressed files
+            else {
+                my $res = $dbh->selectall_arrayref(
+                    "SELECT * FROM files WHERE parent=?", {}, $file_name
+                );
+                my @rows = @{ $res };
+                for my $row (@rows) {
+                    my ($file,$parent,$md5) = @{ $row };
+                    die "Error hardlinking: can't find $file" if (! -e "../$file");
+                    warn "hard linking $file\n" if ($verbose);
+                    link "../$file" => $file; #hard link existing file
+                }
+            }
+        }
+    };
+    if ($@) {
+        my $error = $@;
+        unlink glob '*';
+        chdir '..';
+        warn "removing $temp_dir\n" if ($verbose);
+        rmdir $temp_dir;
+        die $error;
+    }
+    chdir '..';
+
+    #If we get this far, all downloads and decompressions were successful
+
+    #Delete old files and database entries
+    for (keys %orphaned) {
+        warn "deleting $_\n";
+        unlink $_;
+        $dbh->do("DELETE FROM files WHERE name=?", {}, $_)
+            or die "Error deleting $_ from files table";
+    }
+    for (keys %{ $existing_files }) {
+        next if (defined $matching{$_});
+        warn "removing db entry for $_\n";
+        $dbh->do("DELETE FROM compressed WHERE name=?", {}, $_)
+            or die "Error deleting $_ from compressed table";
+    }
+
+    #Add new database entries
+    for my $tgz (keys %downloaded) {
+        $dbh->do("INSERT INTO compressed VALUES (?,?,?,?)", {},
+          $tgz, $db_name, $downloaded{$tgz}, time)
+            or die "Error updating compressed table";
+    }
+    for my $file (keys %decompressed) {
+        $dbh->do("INSERT INTO files VALUES (?,?,?,?)", {}, $file, $db_name,
+          $decompressed{$file}->[0], $decompressed{$file}->[1])
+            or die "Error updating files table";
+    }
+
+    #Copy files
+    my @files = glob "$temp_dir/*";
+    for (@files) {
+        my $newfile = $_;
+        $newfile =~ s/^.+\///;
+        warn "moving $_ to $newfile\n" if ($verbose);
+        rename( $_ => $newfile );
+    }
+    unlink glob "$temp_dir/*";
+    warn "removing $temp_dir\n" if ($verbose);
+    rmdir $temp_dir;
+    syslog( LOG_INFO,
+        "Successfully updated $db_name ($new_downloads new files)") if ($log);
+
+}
+            
+
+sub parse_dir {
+
+    my @files = @_;
+
+    # $struct is array ref with [db_filename, md5_filename]
+    my $struct = {};
+
+    # parse db file structure
+    FILE:
+    for my $file (@files) {
+        next FILE if ($file =~ /^d/);     #ignore directories
+        next FILE if ($file !~ /tar.gz/); #ignore misc files
+        my $name = $file;
+        $name =~ s/.+\s//; # remove everything to last space, leave filename
+
+        # validate naming scheme (also prevents injection attack)
+        if ($name =~ /(\w+)(\.\d+)?\.tar\.gz(\.md5)?/) {
+            my $basename = $1;
+            my $index    = $2 // 0;
+            my $is_md5   = $3 ? 1 : 0;
+            $index =~ s/^\.//; # remove leading period and zeros
+            $index += 0; # remove leading zeros
+            $struct->{$basename}->{$index} = []
+                if (! defined $struct->{$basename}->{$index});
+            $struct->{$basename}->{$index}->[$is_md5] = $name;
+            next FILE;
+        }
+        log_die (LOG_ERR, "bad remote filename: $name\n");
+    }
+
+    # validate structure (all dbs should have a complete and sequential set of
+    # indices (1,2,3,...,n) and paired filenames for each
+
+    for my $db (keys %{$struct}) {
+
+        # test for complete sequence
+        my @indices = sort {$a <=> $b} keys %{ $struct->{$db} };
+        my $upper = $indices[-1];
+        my @test = (0..$upper);
+        if (! (@indices ~~ @test)) {
+            warn "Inconsistent structure for $db: @indices\n" if ($verbose);
+            syslog(LOG_NOTICE, "Inconsistent structure for $db: @indices")
+                if ($log);
+        }
+
+        # test for complete pairs
+        for (@indices) {
+            my ($fn1,$fn2) = @{ $struct->{$db}->{$_} };
+            log_die(LOG_ERR, "Incomplete file pair for $db:$_\n")
+                if (! defined $fn1 || ! defined $fn2);
+        }
+            
+    }
+
+    return $struct;
+
+}
+
+sub initialize_sql {
+
+    unlink SQL_DB if ($clean);
+    my $init = 1 if (! -e SQL_DB);
+    my $dbh = DBI->connect("dbi:SQLite:dbname=ncbi_blast.sqlite","","");
+    if ($init) {
+        $dbh->do( "CREATE TABLE compressed ( "
+            . "name VARCHAR(255) PRIMARY KEY, "
+            . "database VARCHAR(64), "
+            . "md5 CHAR(16), "
+            . "download_time INTEGER )"
+        );
+        $dbh->do( "CREATE TABLE files ( "
+            . "name VARCHAR(255) PRIMARY KEY, "
+            . "database VARCHAR(64), "
+            . "parent VARCHAR(255), "
+            . "md5 CHAR(16) )"
+        );
+    }
+    return $dbh;
+
+}
+
+sub fetch_md5 {
+
+    my $filename = shift;
+    my $remote_md5;
+    my $conn = $ftp->retr($filename);
+    my $rcvd = $conn->read($remote_md5, 32);
+    die "failed to read md5 hash from $filename\n"
+        if ($rcvd != 32);
+    $conn->close();
+    return $remote_md5;
+    
+}
+
+sub clean_quit {
+
+    closelog() if ($log);
+    unlink LOCKFILE;
+    $ftp->quit;
+    exit $exit_status;
+
+} 
+
+sub log_die {
+
+    my ($level, $msg) = @_;
+    if ($log) {
+        syslog($level, $msg);
+        closelog();
+    }
+    $ftp->quit if (defined $ftp);
+    die $msg;
+
+}
+
+sub take_lock {
+
+    sysopen my $fh, LOCKFILE, O_RDWR|O_CREAT
+        or log_die(LOG_ERR, "lockfile open: $!");
+    flock $fh => LOCK_EX or log_die(LOG_ERR, "flock error: $!");
+
+    my $pid = <$fh>;
+    if (defined $pid) {
+        chomp $pid;
+        if (kill ZERO => $pid) { #if process exists
+            close $fh;
+            log_die(LOG_INFO, "skipped update: detected running process");
+        }
+    }
+
+    sysseek  $fh, 0, SEEK_SET or log_die(LOG_ERR, "sysseek: $!");
+    truncate $fh, 0,          or log_die(LOG_ERR, "truncate: $!");
+    print   {$fh} "$PID\n"    or log_die(LOG_ERR, "print: $!");
+    close    $fh                or log_die(LOG_ERR, "close: $!");
+
+}
+
+__END__
+
+=head1 NAME
+
+ncbi_blast_update - manages updates to local BLAST repository from NCBI servers
+
+=head1 SYNOPSIS
+
+ncbi_blast_update [options] --db db1,db2,etc --local path/to/local/db
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--attempts <integer>>
+
+Number of times to attempt a download before giving up (default: 3)
+
+=item B<--clean>
+
+Creates new sqlite database before commencing download (overwriting existing
+database file if necessary). Use with caution - this option will wipe out the
+download history and force a new download of all requested databases. It will
+not delete BLAST files on disk, although it is recommended to do so before
+running this command to keep things clean and sychronized.
+
+=item B<--db>
+
+Comma-separated list of database names to check/update. Example: 'nt,nr'
+
+=item B<--local>
+
+Specify full path to local directory where BLAST database files are stored.
+The sqlite database will also be written to this directory if it does not
+exist. The user running the update must have read/write access to this
+directory.
+
+=item B<--list>
+
+Don't attempt any downloads - just query the remote server and print a list
+of databases available for download. This will override --db, if also given.
+
+=item B<--passive>
+
+Use passive FTP. This is often necessary when downloading from behind a
+firewall (default: TRUE).
+
+=item B<--syslog>
+
+Send status and error messages to the syslog daemon, if running
+
+=item B<--timeout>
+
+Set FTP timeout, in seconds (default: 600)
+
+=item B<--verbose>
+
+Print additional warnings and status messages to STDERR
+
+=item B<--version>
+
+Print sofware name, version, and license info and exit
+
+=back
+
+=head1 DESCRIPTION
+
+This program handles updating and tracking of currently installed preformatted
+NCBI BLAST databases. It tracks existing versions using sqlite, and compares
+MD5 sums between remote files and records of previous downloads. It only
+downloads database files whose MD5 sums have changed, and thus in theory is
+capable of incremental updates, although experience suggests that NCBI makes
+changes to all files in a database during updates that result in different
+MD5 sums and therefore trigger new downloads of all database files. New
+downloads are first saved to a temporary directly, and therefore the program
+is relatively tolerant to errors during download or decompression in that it
+does not remove any existing files from disk until all previous steps have
+completed successfully.
+
+The suggested way to use this script is as a cron job (daily, weekly, monthly,
+etc, as desired). In this case, syslog logging is implemented to integrate
+tracking of success or failure into standard system monitoring and reporting.
+
+=head1 CAVEATS
+
+Currently, the software does not make much effort to handle orphaned files
+(e.g. files in the local BLAST directory that, for whatever reason, are not
+tracked in the current sqlite database. This can be convenient, since it
+allows non-NCBI databases to co-exist in the same directory without fear of
+being inadvertently removed. The only situation in which the software will
+remove orphaned files is if they are currently listed in the sqlite database
+but no longer exist remotely (this has never happened to the author, but
+nonetheless...). However, this means that manual work is sometimes necessary
+to clean up database files which are no longer in use, or which might conflict
+with files to be downloaded by this software.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy@base2bio.com)
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2014 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

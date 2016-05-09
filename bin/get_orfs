@@ -1,0 +1,145 @@
+#!/usr/bin/perl
+
+# get_orfs v0.2
+# c2014 Jeremy Volkening @ BASE2BIO
+# last updated 2014-12-09
+
+use strict;
+use warnings;
+use Fatal qw/open close/;
+use FindBin;
+use Getopt::Long;
+use Pod::Usage;
+use B2B::Seq::Fastx;
+
+# Command line option parsing
+my $in_file;
+my $out_file;
+my $min_size = 75;
+my $strict  = 0;
+my $longest = 0;
+my $cds     = 0;
+
+my $res = GetOptions(
+    "in:s"       => \$in_file,
+    "out:s"      => \$out_file,
+    "min_size=i" => \$min_size,
+    "strict"     => \$strict,
+    "longest"    => \$longest,
+    "cds"        => \$cds,
+    'help'      => sub{ pod2usage(-verbose => 2); },
+);
+
+# default input is STDIN
+my $stream = defined $in_file ? B2B::Seq::Fastx->new( $in_file )
+                              : B2B::Seq::Fastx->new();
+
+# default output is STDOUT
+my $fh_out;
+if (defined $out_file) {
+    open $fh_out, '>', $out_file;
+}
+else {
+    $fh_out = \*STDOUT;
+}
+
+my $aasize = int($min_size/3);
+
+while (my $seq = $stream->next_seq) {
+    my @frames = map {$seq->translate($_)} (0..5);
+    my $count = 1;
+    my $curr_best_len = 0;
+    my $curr_best_orf;
+    for my $index (0..$#frames) {
+        my $frame = $frames[$index];
+        my $tail_size = $strict ? $aasize - 1 : $aasize;
+        my $regex = $strict ? "(M[^\\*]{$tail_size,})"
+                            :  "([^\\*]{$tail_size,})";
+        while ($frame =~ /$regex/g) { 
+            my $orf = B2B::Seq->new( $1 );
+            my $start = $-[0] + 1;
+            my $end = $+[0];
+            my $len = $end - $start + 1;
+            my ($realstart, $realend);
+            if ($index < 3) {
+                $realstart = 3*$start - 2 + $index;
+                $realend = 3*$end + $index;
+            }
+            else {
+                my $seq_len = length($seq);
+                $realstart = $seq_len - 3*$start - $index + 6;
+                $realend = $seq_len - 3*$end - $index + 4;
+            }
+            if ($cds) { # output CDS rather than amino acid seq
+                my $tmpstart = $realend < $realstart ? $realend   : $realstart;
+                my $tmpend   = $realend < $realstart ? $realstart : $realend;
+                my $sub = $seq->range($tmpstart, $tmpend); 
+                $sub->rev_com if ($index > 2);
+                $orf = $sub;
+            }
+            $orf->{id} = $seq->{id} . '_' . $count++;
+            $orf->{desc} = "[$realstart - $realend]";
+            $orf->{desc} .= ' (REVERSE SENSE)' if ($index > 2);
+            if ($longest) {
+                if ($len > $curr_best_len) {
+                    $curr_best_orf = $orf;
+                    $curr_best_len = $len;
+                }
+            }
+            else {
+                print {$fh_out} $orf->as_fasta();
+            }
+        }
+    }
+    if ($longest && defined $curr_best_orf) {
+        print {$fh_out} $curr_best_orf->as_fasta();
+    }
+}
+
+exit;
+
+__END__
+
+=head1 NAME
+
+get_orfs - detect open reading frames in a DNA sequence
+
+=head1 SYNOPSIS
+
+get_orfs [options] --in <fasta_in> --out <fasta_out>
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--in <string>>
+
+Specify file from which to read data. This should be one or more DNA sequences in FASTA format (default: STDIN).
+
+=item B<--out <string>>
+
+Specify file to which to write output in FASTA format (default: STDOUT).
+
+=item B<--minsize <integer>>
+
+Minimum codon length cutoff for reported ORFs (default: 75)
+
+=item B<--strict <bool>>
+
+Reported ORFs must have start and stop codons at ends (default: FALSE);
+
+=item B<--longest <bool>>
+
+Report the single longest ORF above length cutoff for each input sequence (default: FALSE, all ORFs above cutoff are reported)
+
+=item B<--cds <bool>>
+
+Report ORFS in nucleotide sequence rather than translated amino acid sequence (default: FALSE);
+
+=back
+
+=head1 DESCRIPTION
+
+This program finds open reading frames in the input DNA sequences and reports them as translated amino acid sequence (or nucleotide CDS, if requested). Various options control the requirements for ORF calling. Reported ORFs are named based on the input sequence with an "_<count>" appended for each ORF, and coordinates and strand are reported in the output deflines.
+
+=cut

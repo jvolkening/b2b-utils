@@ -1,0 +1,122 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Bio::TreeIO;
+use Getopt::Long;
+use Pod::Usage;
+
+my $fn_in;
+my $fn_out;
+my $bs;
+
+my $NAME = 'boot2frac';
+my $VERSION = '0.001';
+
+my $err_msg = 'Syntax error: please check your syntax';
+GetOptions(
+    'in=s'  => \$fn_in,
+    'out=s' => \$fn_out,
+    'bs=i'  => \$bs,
+    'help'         => sub{ pod2usage( -verbose => 2 ) },
+    'version'      => sub{ print "This is $NAME v$VERSION\n" and exit },
+) or pod2usage( -msg => $err_msg, -verbose => 1 );
+
+die "Input file not found" if (! -e $fn_in);
+die "Output file already exists" if (-e $fn_out);
+die "Must supply positive integer for the --bs parameter"
+    if (! defined $bs || $bs !~ /^\d+$/);
+
+my $in = Bio::TreeIO->new(
+    -format => 'newick',
+    -file   => $fn_in,
+) or die "Error opening input stream: $@";
+
+my $out = Bio::TreeIO->new(
+    -format => 'newick',
+    -file   => ">$fn_out",
+) or die "Error opening output stream: $@";
+
+while (my $tree = $in->next_tree) {
+    for my $node ($tree->get_nodes) {
+        next if ($node->is_Leaf);
+        my $support = $node->id;
+        next if (! defined $support);
+        die "Unexpected internal node value (does your input store integer"
+          . " bootstrap values as internal node labels?)"
+            if ($support !~ /^\d+$/);
+        die "Branch support value greater than supplied bootstrap count"
+            if ($support > $bs);
+        $node->id(sprintf '%.3f', $support/$bs);
+    }
+    $out->write_tree($tree);
+}
+
+__END__
+
+=head1 NAME
+
+boot2frac - convert Newick support values from integer count to fraction
+
+=head1 SYNOPSIS
+
+boot2frac --in $input_fn --out $output_fn --bs $bootstraps
+
+=head1 DESCRIPTION
+
+This program takes a Newick tree file and converts positive integer bootstrap values stored in internal node labels to fractional values based on the supplied total bootstrap run.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--in> I<filename>
+
+Path to input file in Newick format
+
+=item B<--out> I<filename>
+
+Path to output file in Newick format. An error will be thrown if the output exists.
+
+=item B<--bs>
+
+The number of bootstraps actually run (i.e. the denominator)
+
+=item B<--help>
+
+Display this usage page
+
+=item B<--version>
+
+Print version information
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Currently unknown. Please submit bug reports to the author.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jdv@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2014-16 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

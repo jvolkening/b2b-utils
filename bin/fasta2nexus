@@ -7,7 +7,7 @@
 use strict;
 use warnings;
 use BioX::Seq::Stream;
-use BioX::Seq::Stream qw/is_nucleic/;
+use BioX::Seq::Utils qw/is_nucleic/;
 use Getopt::Long;
 use Pod::Usage;
 

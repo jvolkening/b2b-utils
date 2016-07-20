@@ -14,7 +14,7 @@ use Pod::Usage;
 my $line_len     = 60;
 my $strict_names = 0;
 my $interleaved  = 0;
-my $input        = $ARGV[0];
+my $input;
 my $print_version = 0;
 my $type;
 

@@ -6,7 +6,7 @@
 
 use strict;
 use warnings;
-use B2B::Seq::Fastx;
+use BioX::Seq::Fastx;
 use Getopt::Long;
 use Pod::Usage;
 
@@ -42,7 +42,7 @@ print_usage('Syntax error: unknown option') if !$options_okay;
 print_usage("Error: input file can\'t be read")
     if (defined $input && ! -r $input );
 
-my $s = B2B::Seq::Fastx->new($input);
+my $s = BioX::Seq::Fastx->new($input);
 
 my $len;
 my %seqs;

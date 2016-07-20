@@ -1,0 +1,27 @@
+bin/blast2mask.pl
+bin/blast_mt
+bin/boot2frac
+bin/bsml2fasta
+bin/decode_sam_flag
+bin/fasta2nexus
+bin/fasta2phylip
+bin/find_adapts
+bin/fq_interleave
+bin/fq_sort
+bin/frag_lens
+bin/gb2fasta
+bin/get_orfs
+bin/get_orfs2
+bin/gff3_to_fa
+bin/gz2dsrc
+bin/illumina_read_qc
+bin/ncbi_blast_update
+bin/pileup2tbl
+bin/plot_coverage
+bin/rm_gaps
+bin/seq_diff
+bin/summarize_assembly
+bin/sync_reads
+bin/tm
+Build.PL
+MANIFEST			This list of files

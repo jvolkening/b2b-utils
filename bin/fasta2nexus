@@ -91,16 +91,16 @@ print {$fh_out} "${indent}matrix\n";
 if ($interleaved) {
     my $i = 0;
     while ($i < $l_seqs) {
+        print {$fh_out} "\n" if ($i > 0);
         for (@ordered) {
-            printf {$fh_out} "%-${max_id_len}s", $_;
+            printf {$fh_out} "$indent%-${max_id_len}s", $_;
             print {$fh_out} substr($seqs{$_}, $i, $line_len), "\n";
         }
-        print {$fh_out} "\n";
         $i += $line_len;
     }
 }
 else { #non-interleaved
-    printf {$fh_out} ("%-${max_id_len}s%s\n", $_, $seqs{$_}) for (@ordered);
+    printf {$fh_out} ("$indent%-${max_id_len}s%s\n", $_, $seqs{$_}) for (@ordered);
 }
 
 # Footer

@@ -15,6 +15,7 @@ my $line_len     = 60;
 my $strict_names = 0;
 my $interleaved  = 0;
 my $input;
+my $output;
 my $print_version = 0;
 my $type;
 
@@ -23,11 +24,12 @@ use constant VERSION  => '0.1';
 
 my $options_okay = GetOptions(
 
-    'line_length=i' => \$line_len,
-    'strict_names'  => \$strict_names,
-    'interleaved'   => \$interleaved,
-    'type=s'        => \$type,
-    'input=s'       => \$input,
+    'line_length=i'    => \$line_len,
+    'strict_names'     => \$strict_names,
+    'interleaved'      => \$interleaved,
+    'type=s'           => \$type,
+    'in=s'             => \$input,
+    'out=s'            => \$output,
     'man'              => sub{ pod2usage(-verbose => 2); },
     'help'             => sub{ pod2usage(-verbose => 2); },
     'version'          => \$print_version,
@@ -49,6 +51,10 @@ die "Bad sequence type: $type (must be 'dna' or 'protein')\n"
     if (defined $type && $type !~ /^(?:dna|protein)$/i);
 
 my $s = BioX::Seq::Stream->new($input);
+my $fh_out = \*STDOUT;
+if (defined $output) {
+    open($fh_out, '>', $output) or die "Error opening file for output:$@\n"
+}
 
 my $l_seqs;
 my %seqs;
@@ -74,32 +80,32 @@ my $il_bool = $interleaved ? 'yes' : 'no';
 
 # Header
 
-print "#NEXUS\n\n";
+print {$fh_out} "#NEXUS\n\n";
 
 my $indent = '  ';
-print "begin data;\n";
-print "${indent}dimensions ntax=$n_seqs nchar=$l_seqs;\n";
-print "${indent}format datatype=$type interleave=$il_bool gap=-;\n";
-print "${indent}matrix\n";
+print {$fh_out} "begin data;\n";
+print {$fh_out} "${indent}dimensions ntax=$n_seqs nchar=$l_seqs;\n";
+print {$fh_out} "${indent}format datatype=$type interleave=$il_bool gap=-;\n";
+print {$fh_out} "${indent}matrix\n";
 
 if ($interleaved) {
     my $i = 0;
     while ($i < $l_seqs) {
+        print {$fh_out} "\n" if ($i > 0);
         for (@ordered) {
-            printf "%-${max_id_len}s", $_;
-            print substr($seqs{$_}, $i, $line_len), "\n";
+            printf {$fh_out} "$indent%-${max_id_len}s", $_;
+            print {$fh_out} substr($seqs{$_}, $i, $line_len), "\n";
         }
-        print "\n";
         $i += $line_len;
     }
 }
 else { #non-interleaved
-    printf("%-${max_id_len}s%s\n", $_, $seqs{$_}) for (@ordered);
+    printf {$fh_out} ("$indent%-${max_id_len}s%s\n", $_, $seqs{$_}) for (@ordered);
 }
 
 # Footer
-print "${indent};\n";
-print "end;\n";
+print {$fh_out} "${indent};\n";
+print {$fh_out} "end;\n";
 
 sub print_usage {
     my $string = shift;

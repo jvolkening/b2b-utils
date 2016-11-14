@@ -1,73 +1,63 @@
 #!/usr/bin/perl
 
-# summarize_assembly v0.2
-# c2014 Jeremy Volkening @ BASE2BIO
-# last updated 2014-12-17
-
 use strict;
 use warnings;
-use Carp;
 use Getopt::Long;
 use Pod::Usage;
 use List::Util qw/sum max min/;
 use List::MoreUtils qw/uniq/;
-use B2B::Seq::Fastx;
+use BioX::Seq::Stream;
 
-my $fasta_filename;
+my $fn_fasta;
 my @cutoffs;
 my $strip = 0;
 my $split = 0;
 
 use constant NAME    => 'summarize_assembly';
-use constant VERSION => '0.2';
+use constant VERSION => '0.002';
 
 # Collect command-line parameters
 my $err_msg = 'Syntax error: please check your syntax';
 GetOptions(
-
-    'fasta=s'      => \$fasta_filename,
+    'fasta=s'      => \$fn_fasta,
     'cutoffs:i{,}' => \@cutoffs,
     'strip_N'      => \$strip,
     'split_N'      => \$split,
     'help'         => sub{ pod2usage( -verbose => 2 ) },
     'version'      => sub{ print 'This is ',NAME,' v',VERSION,"\n" and exit },
-
 ) or pod2usage( -msg => $err_msg, -verbose => 1 );
-warn "C: $_\n" for (@cutoffs);
 
 # Set default cutoffs if necessary and sort
 if (! scalar @cutoffs) {
-    print "No cutoff supplied, defaulting to N50\n";
+    warn "No cutoff supplied, defaulting to N50\n";
     push @cutoffs, 50;
 }
 @cutoffs = sort {$a <=> $b} uniq @cutoffs;
 
 # Only one of 'strip_N' or 'split_N' is valid
 if ($strip && $split) {
-    carp "Only one of --strip_N or --split_N is valid, ignoring --strip_N\n";
+    warn "Only one of --strip_N or --split_N is valid, ignoring --strip_N\n";
     $strip = 0;
 }
 
 # Check for a few necessary conditions
-croak "Can't open FASTA file for reading"
-    if (defined $fasta_filename && ! -r $fasta_filename);
-croak "One or more cutoffs outside valid range (1-99)"
+die "Can't open FASTA file for reading"
+    if (defined $fn_fasta && ! -r $fn_fasta);
+die "One or more cutoffs outside valid range (1-99)"
     if (grep {$_ < 1 || $_ > 99} @cutoffs);
-croak "Cutoffs must be integer values"
+die "Cutoffs must be integer values"
     if (grep {$_ ne int($_)} @cutoffs);
 my @lens;
-my $N_sum = 0;
+my $N_sum  = 0;
 my $GC_sum = 0;
 
 # Read in sequences and calculate descriptive stats
-my $stream = B2B::Seq::Fastx->new( $fasta_filename ); #STDIN if undefined
+my $stream = BioX::Seq::Stream->new( $fn_fasta ); #STDIN if undefined
 
 SEQ:
 while (my $seq = $stream->next_seq) {
     my @parts = ($seq);
-    if ($split) {
-        @parts = split /n+/i, $seq;
-    }
+    @parts = split(/n+/i, $seq) if $split;
     for (@parts) {
         my $Ns   = ($_ =~ tr/Nn//);
         $N_sum  += $Ns;
@@ -94,6 +84,7 @@ my $GC_fraction = round( $GC_sum/($total_len + ($strip - 1)*$N_sum), 2 )*100;
 my $cum_length = 0;
 my @fractions  = map {$_/100} @cutoffs;
 my @Nx;
+
 LEN:
 for (@lens) {
     $cum_length += $_;
@@ -139,14 +130,9 @@ __END__
 
 summarize_assembly - print basic summary info for a file of assembly scaffolds
 
-=head1 VERSION
-
-This documentation refers to v0.2
-
 =head1 SYNOPSIS
 
-summarize_assembly [--cutoffs I<cutoff_1> I<cutoff_2> .. I<cutoff_N> --strip_N
---fasta I<input_file>]
+summarize_assembly [--cutoffs I<cutoff_1> I<cutoff_2> .. I<cutoff_N> --strip_N --split_N ] --fasta I<input_file>]
 
 =head1 DESCRIPTION
 
@@ -197,11 +183,11 @@ Currently unknown. Please submit bug reports to the author.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jeremy *at* base2bio.com)
+Jeremy Volkening (jdv@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014 Jeremy Volkening
+Copyright 2014-16 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

@@ -1,15 +1,11 @@
 #!/usr/bin/perl
 
-# sync_reads v0.3
-# c2014 Jeremy Volkening @ BASE2BIO
-# last updated 2014-12-09
-
 use strict;
 use warnings;
 use autodie qw/open close/;
 use Getopt::Long;
 use Pod::Usage;
-use B2B::Seq::Fastx;
+use BioX::Seq::Stream;
 
 my $reads1;
 my $reads2;
@@ -26,40 +22,28 @@ my $singles2_name;
 use constant DSRC_BIN => 'dsrc';
 use constant GZIP_BIN => 'gzip';
 use constant NAME     => 'sync_reads';
-use constant VERSION  => '0.3';
+use constant VERSION  => '0.004';
 
 GetOptions(
 
-    'fwd=s'            => \$reads1,
-    'rev=s'            => \$reads2,
-    'singles'          => \$singles,
-    'fwd_out=s'        => \$outname1,
-    'rev_out=s'        => \$outname2,
-    'fwd_singles_out=s'    => \$singles1_name,
-    'rev_singles_out=s'    => \$singles2_name,
-    'sync_suffix=s'    => \$sync_suffix,
-    'singles_suffix=s' => \$singles_suffix,
-    'decompress:s'     => \$decompress,
-    'compress:s'       => \$compress,
-    'help'             => sub{ pod2usage(-verbose => 2); },
-    'version'          => sub{ print 'This is ', NAME, ' v', VERSION, "\n";exit; },
+    'fwd=s'             => \$reads1,
+    'rev=s'             => \$reads2,
+    'singles'           => \$singles,
+    'fwd_out=s'         => \$outname1,
+    'rev_out=s'         => \$outname2,
+    'fwd_singles_out=s' => \$singles1_name,
+    'rev_singles_out=s' => \$singles2_name,
+    'sync_suffix=s'     => \$sync_suffix,
+    'singles_suffix=s'  => \$singles_suffix,
+    'decompress:s'      => \$decompress,
+    'compress:s'        => \$compress,
+    'help'              => sub{ pod2usage(-verbose => 2); },
+    'version'           => sub{ print 'This is ', NAME, ' v', VERSION, "\n";exit; },
 
 ) or pod2usage( -verbose => 1 );
 
 pod2usage(-verbose => 1, -msg => "Error: input files can\'t be read")
     if (! -r $reads1 || ! -r $reads2);
-
-
-# open input filehandles, decompressing if necessary
-my $mode = $decompress =~ /^(?:gzip|dsrc)$/ ? '-|' : '<';
-my $cmd  = $decompress eq 'gzip' ? GZIP_BIN . ' -d -c '
-         : $decompress eq 'dsrc' ? DSRC_BIN . ' d -s '
-         : '';
-open my $f1, $mode, $cmd . $reads1;
-open my $f2, $mode, $cmd . $reads2;
-$reads1 =~ s/\.(?:gz|dsrc)$// if ($decompress ne '');
-$reads2 =~ s/\.(?:gz|dsrc)$// if ($decompress ne '');
-
 
 # open output filehandles, possibly with compression
 if (! defined $outname1) {
@@ -70,8 +54,8 @@ if (! defined $outname2) {
     $outname2 = $reads2;
     $outname2 =~ s/([^\.]+)$/$sync_suffix\.$1/;
 }
-$mode = $compress =~ /^(?:gzip|dsrc)$/ ? '|-' : '>';
-$cmd  = $compress eq 'gzip' ? GZIP_BIN . ' -c > '
+my $mode = $compress =~ /^(?:gzip|dsrc)$/ ? '|-' : '>';
+my $cmd  = $compress eq 'gzip' ? GZIP_BIN . ' -c > '
       : $compress eq 'dsrc' ? DSRC_BIN . ' c -m2 -s '
       : '';
 my $suffix  = $compress eq 'gzip' ? '.gz' 
@@ -111,8 +95,8 @@ my $f2_prev;
 my $f1_open = 1;
 my $f2_open = 1;
 
-my $parser1 = B2B::Seq::Fastx->new($f1);
-my $parser2 = B2B::Seq::Fastx->new($f2);
+my $parser1 = BioX::Seq::Stream->new($reads1);
+my $parser2 = BioX::Seq::Stream->new($reads2);
 
 while ($f1_open || $f2_open) {
 
@@ -192,13 +176,9 @@ __END__
 
 sync_reads - resynchronize paired FASTQ files
 
-=head1 VERSION
-
-This documentation refers to v0.3
-
 =head1 SYNOPSIS
 
-sync_reads [options] --reads1 I<left_reads> --reads2 I<right reads>
+sync_reads [options] --fwd I<left_reads> --rev I<right reads>
 
 =head1 DESCRIPTION
 
@@ -253,10 +233,6 @@ Specify suffix to add to synced read output files. This will be added to the
 input read name before the final suffix (i.e. after the last period). Default
 is 'sync'.
 
-=item B<--decompress> I<gzip|dsrc>
-
-Specify type of compression for input files (will decompress on the fly)
-
 =item B<--compress> I<gzip|dsrc>
 
 Specify type of compression for output files (will compress all output files)
@@ -302,11 +278,11 @@ Please send bug reports by email to the author.
 
 =head1 AUTHOR
 
-Jeremy Volkening <jeremy@base2bio.com>
+Jeremy Volkening <jdv@base2bio.com>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014 Jeremy Volkening
+Copyright 2014-16 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

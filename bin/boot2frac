@@ -5,26 +5,33 @@ use warnings;
 
 use Bio::TreeIO;
 use Getopt::Long;
+use Math::SigFigs;
 use Pod::Usage;
 
 my $fn_in;
 my $fn_out;
 my $bs;
+my $mode  = 'decimal'; # decimal or percent
+my $sf    = 4;
+my $force = 0;
 
 my $NAME = 'boot2frac';
 my $VERSION = '0.001';
 
 my $err_msg = 'Syntax error: please check your syntax';
 GetOptions(
-    'in=s'  => \$fn_in,
-    'out=s' => \$fn_out,
-    'bs=i'  => \$bs,
+    'in=s'         => \$fn_in,
+    'out=s'        => \$fn_out,
+    'bs=i'         => \$bs,
+    'force'        => \$force,
+    'mode=s'       => \$mode,
+    'sig_figs=i'   => \$sf,
     'help'         => sub{ pod2usage( -verbose => 2 ) },
     'version'      => sub{ print "This is $NAME v$VERSION\n" and exit },
 ) or pod2usage( -msg => $err_msg, -verbose => 1 );
 
 die "Input file not found" if (! -e $fn_in);
-die "Output file already exists" if (-e $fn_out);
+die "Output file already exists" if (-e $fn_out && ! $force);
 die "Must supply positive integer for the --bs parameter"
     if (! defined $bs || $bs !~ /^\d+$/);
 
@@ -48,7 +55,10 @@ while (my $tree = $in->next_tree) {
             if ($support !~ /^\d+$/);
         die "Branch support value greater than supplied bootstrap count"
             if ($support > $bs);
-        $node->id(sprintf '%.3f', $support/$bs);
+        my $label = $mode eq 'decimal' ? FormatSigFigs($support/$bs,     $sf)
+                  : $mode eq 'percent' ? FormatSigFigs($support/$bs*100, $sf)
+                  : die "Unsupported mode: $mode\n";
+        $node->id($label);
     }
     $out->write_tree($tree);
 }
@@ -82,6 +92,16 @@ Path to output file in Newick format. An error will be thrown if the output exis
 =item B<--bs>
 
 The number of bootstraps actually run (i.e. the denominator)
+
+=item B<--mode>
+
+The format in which to write support values (either 'decimal', e.g. '0.658', or
+'percent', e.g. '65.8') (default: decimal)
+
+=item B<--sig_figs>
+
+The number of significant figures to use in writing support values (default:
+4)
 
 =item B<--help>
 

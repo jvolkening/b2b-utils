@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use BioX::Seq;
+use BioX::Seq::Stream;
 use BioX::Seq::Fetch;
 use File::Temp qw/tempfile/;
 use Getopt::Long;

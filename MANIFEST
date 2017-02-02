@@ -1,4 +1,3 @@
-bin/blast2mask.pl
 bin/blast_mt
 bin/boot2frac
 bin/bsml2fasta
@@ -25,3 +24,7 @@ bin/sync_reads
 bin/tm
 Build.PL
 MANIFEST			This list of files
+t/boot2frac.t
+t/test_data/test.newick.in
+t/test_data/test.newick.out.bs500.sf3.md
+t/test_data/test.newick.out.bs600.sf4.mp

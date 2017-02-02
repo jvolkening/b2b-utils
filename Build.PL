@@ -6,7 +6,7 @@ use Module::Build;
 
 my $builder = Module::Build->new(
     module_name        => 'b2b-utils',
-    dist_version       => 0.001,
+    dist_version       => 0.002,
     dist_abstract      => 'Utilities from BASE2BIO',
     license            => 'GPL_3',
     dist_author        => q{Jeremy Volkening <jdv@base2bio.com>},
@@ -17,7 +17,9 @@ my $builder = Module::Build->new(
         'Test::More' => 0,
     },
     requires => {
-        'BioX::Seq'   => 0,
+        'BioX::Seq'     => 0,
+        'Bio::TreeIO'   => 0,
+        'Math::SigFigs' => 0,
     },
     meta_merge => {
         resources => {

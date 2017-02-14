@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+use Getopt::Long;
+use File::Spec;
+use File::Temp qw/tempfile/;
+
+my $db;
+my $pfx_out;
+
+GetOptions(
+    'db=s'  => \$db,
+    'out=s' => \$pfx_out,
+) or die "Error parsing command-line parameters: $@\n";
+
+die "database not defined" if (! defined $db);
+die "output prefix not defined" if (! defined $pfx_out);
+
+my $tmp = File::Temp->new(UNLINK => 1, SUFFIX => '.dat');
+
+print "Converting BLAST db to FASTA...\n";
+my $ret = system( 'blastdbcmd',
+    '-outfmt' => '"%f"',
+    '-out'    => $tmp,
+    '-entry'  => 'all',
+    '-db'     => $db,
+);
+die "BLASTDBCMD error: $!\n" if ($ret);
+
+print "Converting FASTA to DIAMOND db...\n";
+open my $stdout_old, '>&', \*STDOUT;
+open STDOUT, '>>', File::Spec->devnull();
+
+$ret = system( 'diamond', 'makedb',
+    '--in' => $tmp,
+    '-d'   => $pfx_out,
+);
+open STDOUT, '>&', $stdout_old;
+die "DIAMOND error: $!\n" if ($ret);
+
+exit;

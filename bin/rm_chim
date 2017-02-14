@@ -1,0 +1,89 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Long;
+use autodie qw/:all/;
+
+my $db;
+my $reads = '-';
+my $threads = 1;
+my $seed = '13';
+my $min_score = 20;
+my $fn_out;
+
+GetOptions(
+    'reads=s'     => \$reads, 
+    'db=s'        => \$db, 
+    'threads=i'   => \$threads,
+    'seed=i'      => \$seed,
+    'min_score=f' => \$min_score,
+    'out=s'       => \$fn_out,
+);
+
+
+my $curr_orient = 0;
+my $curr_read;
+my $curr_id;
+my $kept = 0;
+my $total = 0;
+
+my $out = \*STDOUT;
+if (defined $fn_out) {
+    open $out, '>', $fn_out;
+}
+warn "Searching for chimeric reads...\n";
+open my $sam, "bwa mem -t $threads -M -C -T $min_score -k $seed $db $reads 2> /dev/null |";
+while (my $line = <$sam>) {
+    next if ($line =~ /^\@/);
+    chomp $line;
+    my ($id,$flags,@other) = split "\t", $line;
+    if (defined $curr_id && $id ne $curr_id) {
+        if ($curr_orient != 0x03) {
+            ++$kept;
+            print {$out} $curr_read;
+        }
+        ++$total;
+        $curr_read = undef;
+        $curr_id = $id;
+        $curr_orient = 0;
+    }
+    my $mask = $flags & 0x0010 ? 0x02 : 0x01; # 0x01 forward, 0x02 reverse
+    $curr_orient = $curr_orient | $mask;
+
+    for my $tag (@other[9..$#other]) {
+        my ($code,$type,$val) = split ':', $tag;
+        next if ($code ne 'XA');
+        for my $hit (split ';', $val) {
+            my ($chr,$pos,$cigar,$nm) = split ',', $hit;
+            my $mask = $pos < 0 ? 0x02 : 0x01; # 0x01 forward, 0x02 reverse
+            $curr_orient = $curr_orient | $mask;
+        }
+    }
+    $curr_id = $id;
+    my $seq = $other[7];
+    my $qual = $other[8];
+    if ($flags & 0x0010) { # reversed
+        $qual = reverse $qual;
+        $seq = reverse $seq;
+        $seq =~ tr/ATGCatgc/TACGtacg/;
+    }
+    $curr_read = "\@$id $other[-1]\n$seq\n+\n$qual\n";
+            
+}
+
+# handle last read
+if ($curr_orient != 0x03) {
+    ++$kept;
+    print {$out} $curr_read;
+}
+++$total;
+
+close $sam;
+
+my $discards = $total - $kept;
+my $perc = int($discards/$total*100*10+0.5)/10;
+warn "rm_chim: discarded $discards of $total ($perc\%)\n";
+
+exit;
+

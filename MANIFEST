@@ -15,7 +15,7 @@ bin/gff3_to_fa
 bin/gz2dsrc
 bin/illumina_read_qc
 bin/ncbi_blast_update
-bin/pileup2tbl
+bin/bam2consensus
 bin/plot_coverage
 bin/rm_gaps
 bin/seq_diff

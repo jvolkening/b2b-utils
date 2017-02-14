@@ -9,12 +9,13 @@ use BioX::Seq;
 use BioX::Seq::Stream;
 use BioX::Seq::Fetch;
 use File::Temp qw/tempfile/;
+use File::Which qw/which/;
 use Getopt::Long;
 use List::Util qw/sum max first/;
 use POSIX qw/floor ceil/;
 use Time::Piece;
 
-my $fn_input;
+my $fn_bam;
 my $fn_ref;
 my $fn_table;
 my $fn_consensus;
@@ -30,7 +31,7 @@ my $PROGRAM = 'pileup2tbl';
 my $VERSION = 0.002;
 
 GetOptions(
-    'in=s'          => \$fn_input,
+    'bam=s'         => \$fn_bam,
     'ref=s'         => \$fn_ref,
     'table=s'       => \$fn_table,
     'consensus=s'   => \$fn_consensus,
@@ -42,6 +43,16 @@ GetOptions(
     'window=i'      => \$sliding_window,
     'verbose'       => \$verbose,
 ) or die "Error parsing parameters\n";
+
+# check for recent version of samtools
+my $SAMTOOLS = which 'samtools' // die "Samtools is required but not found\n";
+my $v_string = `$SAMTOOLS --version`;
+if ($v_string =~ /^samtools (\d+)\.(\d+)/m) {
+    die "Requires samtools >= 1.3.0\n" if ($1 < 1 || $2 < 3);
+} else {
+    die "Error parsing samtools version string\n";
+}
+
 
 # misc param checking
 die "No outputs specified"
@@ -70,14 +81,17 @@ my %iupac = (
     ACG => 'V',
 );
 
-# choose input (given filename or STDIN)
-my $fh = \*STDIN;
-if (defined $fn_input) {
-    die "Error reading input" if (! -r $fn_input);
-    open $fh, '<', $fn_input;
-}
+$fn_bam //= '-'; # use stdin if BAM file not given
+ 
+open my $fh, '-|', $SAMTOOLS,
+    'mpileup',
+    '-d' => 1000000,
+    '-B',
+    '-f' => $fn_ref,
+    $fn_bam ;
+    
 
-# grab first seq from reference file
+# initialize random-access sequence collection
 my $seqs = BioX::Seq::Fetch->new($fn_ref) or die "Error loading reference";
 
 my @consensi;

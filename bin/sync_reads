@@ -1,18 +1,19 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+
 use autodie qw/open close/;
+use BioX::Seq::Stream;
 use Getopt::Long;
 use Pod::Usage;
-use BioX::Seq::Stream;
 
 my $reads1;
 my $reads2;
 my $singles;
 my $sync_suffix    = 'sync';
 my $singles_suffix = 'singles';
-my $decompress     = ''; # one of 'gzip' or 'dsrc'
 my $compress       = ''; # one of 'gzip' or 'dsrc'
 my $outname1;
 my $outname2;
@@ -35,7 +36,6 @@ GetOptions(
     'rev_singles_out=s' => \$singles2_name,
     'sync_suffix=s'     => \$sync_suffix,
     'singles_suffix=s'  => \$singles_suffix,
-    'decompress:s'      => \$decompress,
     'compress:s'        => \$compress,
     'help'              => sub{ pod2usage(-verbose => 2); },
     'version'           => sub{ print 'This is ', NAME, ' v', VERSION, "\n";exit; },
@@ -203,7 +203,7 @@ missing reads, or the output will report many valid pairs as singletons.
 
 =head2 Mandatory
 
-=over 8
+=over 4
 
 =item B<--fwd> I<forward_fastq>
 
@@ -217,7 +217,7 @@ Specify FASTQ file containing the second of the trimmed read pairs
 
 =head2 Optional
 
-=over 8 
+=over 4 
 
 =item B<--fwd_out> I<filename>
 
@@ -226,6 +226,14 @@ Specify output name for synced forward reads
 =item B<--rev_out> I<filename>
 
 Specify output name for synced reverse reads
+
+=item B<--fwd_singles_out> I<filename>
+
+Specify output name for forward singleton reads
+
+=item B<--rev_singles_out> I<filename>
+
+Specify output name for reverse singleton reads
 
 =item B<--sync_suffix> I<suffix>
 
@@ -241,14 +249,6 @@ Specify type of compression for output files (will compress all output files)
 
 If given, unpaired reads will be written to separate output files. Default is
 FALSE.
-
-=item B<--fwd_singles_out> I<filename>
-
-Specify output name for forward singleton reads
-
-=item B<--rev_singles_out> I<filename>
-
-Specify output name for reverse singleton reads
 
 =item B<--singles_suffix> I<suffix>
 
@@ -274,7 +274,7 @@ lines and no other extraneous information present. B<CRITICALLY>, they are also
 assumed to be in the same input order after accounting for deleted reads
 (the software will fail miserably if this is not the case).
 
-Please send bug reports by email to the author.
+Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 

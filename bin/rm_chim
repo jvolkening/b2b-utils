@@ -1,9 +1,15 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
-use Getopt::Long;
+use 5.012;
+
 use autodie qw/:all/;
+use Getopt::Long;
+use Pod::Usage;
+
+my $PROGRAM = 'rm_chim';
+my $VERSION = 0.002;
 
 my $db;
 my $reads = '-';
@@ -13,13 +19,17 @@ my $min_score = 20;
 my $fn_out;
 
 GetOptions(
-    'reads=s'     => \$reads, 
+
+    'fq=s'        => \$reads, 
     'db=s'        => \$db, 
     'threads=i'   => \$threads,
     'seed=i'      => \$seed,
     'min_score=f' => \$min_score,
     'out=s'       => \$fn_out,
-);
+    'help'              => sub{ pod2usage(-verbose => 2); },
+    'version'           => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+
+) or pod2usage( -verbose => 1 );
 
 
 my $curr_orient = 0;
@@ -32,12 +42,22 @@ my $out = \*STDOUT;
 if (defined $fn_out) {
     open $out, '>', $fn_out;
 }
-warn "Searching for chimeric reads...\n";
-open my $sam, "bwa mem -t $threads -M -C -T $min_score -k $seed $db $reads 2> /dev/null |";
+
+open my $sam, '-|', 'bwa',
+    'mem',
+    '-t' => $threads,
+    '-M',
+    '-C',
+    '-T' => $min_score,
+    '-k' => $seed,
+    $db,
+    $reads,
+;
+
 while (my $line = <$sam>) {
     next if ($line =~ /^\@/);
     chomp $line;
-    my ($id,$flags,@other) = split "\t", $line;
+    my ($id, $flags, @other) = split "\t", $line;
     if (defined $curr_id && $id ne $curr_id) {
         if ($curr_orient != 0x03) {
             ++$kept;
@@ -61,12 +81,12 @@ while (my $line = <$sam>) {
         }
     }
     $curr_id = $id;
-    my $seq = $other[7];
+    my $seq  = $other[7];
     my $qual = $other[8];
     if ($flags & 0x0010) { # reversed
         $qual = reverse $qual;
-        $seq = reverse $seq;
-        $seq =~ tr/ATGCatgc/TACGtacg/;
+        $seq  = reverse $seq;
+        $seq  =~ tr/ATGCatgc/TACGtacg/;
     }
     $curr_read = "\@$id $other[-1]\n$seq\n+\n$qual\n";
             
@@ -87,3 +107,105 @@ warn "rm_chim: discarded $discards of $total ($perc\%)\n";
 
 exit;
 
+__END__
+
+=head1 NAME
+
+rm_chim - filter out chimeric reads based on alignment against a reference
+sequence
+
+=head1 SYNOPSIS
+
+rm_chim [options] --fq I<raw_reads> --db I<BWA_database>
+
+=head1 DESCRIPTION
+    'fq=s'        => \$reads, 
+    'db=s'        => \$db, 
+    'threads=i'   => \$threads,
+    'seed=i'      => \$seed,
+    'min_score=f' => \$min_score,
+    'out=s'       => \$fn_out,
+    'help'              => sub{ pod2usage(-verbose => 2); },
+    'version'           => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+
+B<rm_chim> aims to filter out chimeric reads that appear to be techinical
+artifacts related to certain library preparation protocols. It does this by
+the simplistic technique of mapping against a known reference sequence and
+removing reads for which subsequences map in opposite orientations against the
+genome.
+
+B<IMPORTANT:> Do not use this filter on data where genomic inversions might be
+expected to actually occur in yoru data.
+
+=head1 OPTIONS
+
+=head2 Mandatory
+
+=over 4
+
+=item B<--fq> I<fastq>
+
+Path to raw data in FASTQ format
+
+=item B<--db> I<bwa_prefix>
+
+Prefix of BWA database to map against
+
+=back
+
+=head2 Optional
+
+=over 4 
+
+=item B<--out> I<filename>
+
+Specify where to write passed reads to. Default: STDOUT.
+
+=item B<--threads> I<integer>
+
+Number of threads BWA should use. Default: 1.
+
+=item B<--seed> I<integer>
+
+Seed to pass to BWA (--k) (for deterministic mapping)
+
+=item B<--min_score> I<integer>
+
+Minimum BWA alignment score to report (--T). Default: 20.
+
+=item B<--help>
+
+Display this usage page
+
+=item B<--version>
+
+Print version information
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening <jdv@base2bio.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2014-16 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

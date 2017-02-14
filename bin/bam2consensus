@@ -13,39 +13,45 @@ use File::Which qw/which/;
 use Getopt::Long;
 use List::Util qw/sum max first/;
 use POSIX qw/floor ceil/;
-use Time::Piece;
 
+#-inputs---------------------------------------------------------------------#
 my $fn_bam;
 my $fn_ref;
+#-outputs--------------------------------------------------------------------#
 my $fn_table;
 my $fn_consensus;
 my $fn_bedgraph;
-my $min_qual         = 10;
-my $min_depth        = 1;
-my $trim_fraction    = 0.2;
-my $sliding_window   = 30;
-my $verbose          = 0;
+#-knobs----------------------------------------------------------------------#
+my $min_qual       = 10;
+my $min_depth      = 1;
+my $trim_fraction  = 0.2;
+my $sliding_window = 30;
 my $bg_bin_figs;
+my $verbose        = 0;
 
-my $PROGRAM = 'pileup2tbl';
-my $VERSION = 0.002;
+my $PROGRAM = 'bam2consensus';
+my $VERSION = 0.003;
 
 GetOptions(
+    #-inputs-----------------------------------------------------------------#
     'bam=s'         => \$fn_bam,
     'ref=s'         => \$fn_ref,
+    #-outputs----------------------------------------------------------------#
     'table=s'       => \$fn_table,
     'consensus=s'   => \$fn_consensus,
     'bedgraph=s'    => \$fn_bedgraph,
-    'bg_bin_figs=i' => \$bg_bin_figs,
+    #-knobs------------------------------------------------------------------#
     'min_qual=i'    => \$min_qual,
     'min_depth=i'   => \$min_depth,
     'trim=f'        => \$trim_fraction,
     'window=i'      => \$sliding_window,
+    'bg_bin_figs=i' => \$bg_bin_figs,
     'verbose'       => \$verbose,
 ) or die "Error parsing parameters\n";
 
 # check for recent version of samtools
-my $SAMTOOLS = which 'samtools' // die "Samtools is required but not found\n";
+my $SAMTOOLS = which 'samtools'
+    // die "Samtools is required but not found\n";
 my $v_string = `$SAMTOOLS --version`;
 if ($v_string =~ /^samtools (\d+)\.(\d+)/m) {
     die "Requires samtools >= 1.3.0\n" if ($1 < 1 || $2 < 3);
@@ -53,12 +59,22 @@ if ($v_string =~ /^samtools (\d+)\.(\d+)/m) {
     die "Error parsing samtools version string\n";
 }
 
+# check for mafft
+my $MAFFT = which 'mafft'
+    // die "MAFFT is required but not found\n";
+
 
 # misc param checking
-die "No outputs specified"
-    if (! defined $fn_table && ! defined $fn_consensus && ! defined $fn_bedgraph);
-die "Missing reference parameter" if (! defined $fn_ref);
-die "Error reading reference"if (! -r $fn_ref);
+die "Error: must specify at least one output target" if (! (
+       defined $fn_table
+    || defined $fn_consensus
+    || defined $fn_bedgraph
+));
+die "Error: missing reference parameter"
+    if (! defined $fn_ref);
+die "Error reading reference"
+    if (! -r $fn_ref);
+
 
 # globals
 my @errors;
@@ -81,19 +97,6 @@ my %iupac = (
     ACG => 'V',
 );
 
-$fn_bam //= '-'; # use stdin if BAM file not given
- 
-open my $fh, '-|', $SAMTOOLS,
-    'mpileup',
-    '-d' => 1000000,
-    '-B',
-    '-f' => $fn_ref,
-    $fn_bam ;
-    
-
-# initialize random-access sequence collection
-my $seqs = BioX::Seq::Fetch->new($fn_ref) or die "Error loading reference";
-
 my @consensi;
 my $bg = '';
 
@@ -105,28 +108,55 @@ my $last_loc   = 0;
 my $bg_start   = 0;
 my $bg_loc     = 0;
 
+
+# initialize random-access sequence collection
+my $seqs = BioX::Seq::Fetch->new($fn_ref) or die "Error loading reference";
+
+
+# pipe from samtools mpileup command
+# (note: this is much faster in testing than using Perl bindings, e.g.
+# Bio::DB::HTS or the like)
+
+$fn_bam //= '-'; # use stdin if BAM file not given
+ 
+open my $fh, '-|', $SAMTOOLS,
+    'mpileup',
+    '-d' => 1000000,
+    '-B',
+    '-f' => $fn_ref,
+    $fn_bam ;
+    
+
+
 LINE:
 while (my $line = <$fh>) {
+
     chomp $line;
     my ($chr, @other) = split "\t", $line;
     $last_chr //= $chr;
+
     if ($chr ne $last_chr) {
         process(\@curr_lines);
         @curr_lines = ();
         $last_chr = $chr;
     }
+
     push @curr_lines, $line;
 }
-process(\@curr_lines);
 
+process(\@curr_lines); # don't forget last call
+
+# output bedgraph if asked
 if (defined $fn_bedgraph) {
     open my $fh_bedgraph, '>', $fn_bedgraph;
-    print {$fh_bedgraph} "track type=bedGraph name=read_coverage maxHeightPixels=1000:80:20\n";
+    print {$fh_bedgraph}
+        "track type=bedGraph name=read_coverage maxHeightPixels=1000:80:20\n";
     print {$fh_bedgraph} $bg;
     close $fh_bedgraph;
 
 }
 
+# output fasta if asked
 if (defined $fn_consensus) {
 
     open my $out, '>', $fn_consensus;
@@ -135,6 +165,7 @@ if (defined $fn_consensus) {
 
 }
 
+# build and process table if asked
 if (defined $fn_table) {
 
     # calculate sliding errors
@@ -499,18 +530,27 @@ sub handle_entry {
 
 sub realign {
 
+    # calculate a local realignment at indel using MAFFT
+    # TODO: reimplement using native code
+
     my ($hash) = @_;
+
     my @seqs = keys %{ $hash };
     my @weights = map {$hash->{$_}} @seqs;
     my @scores;
     if (scalar(@seqs) > 1) {
-        my ($fh,$fn) = tempfile;
+        my ($fh, $fn) = tempfile;
         for (0..$#seqs) {
             my $n = $_ + 1;
             print {$fh} ">$n\n$seqs[$_]\n";
         }
         close $fh;
-        open my $stream, '-|', 'mafft', '--auto', '--quiet', '--op',0, '--lop', 0, $fn;
+        open my $stream, '-|', $MAFFT,
+            '--auto',
+            '--quiet',
+            '--op'  => 0,
+            '--lop' => 0,
+            $fn;
         my $p = BioX::Seq::Stream->new($stream);
         while (my $seq = $p->next_seq) {
             my $w = shift @weights;

@@ -18,7 +18,7 @@ my $fn_bg            = '-';
 my $fn_fa            = '-';
 my $out_file         = '-';
 my $feat_file;
-my $out_fmt          = 'svg';
+my $out_fmt          = 'html';
 my $title            = 'Coverage summary';
 my $window_size      = 1000;
 my $img_height       = 300;
@@ -50,7 +50,7 @@ print_usage("Error: input file $fn_bg can\'t be read")
     if ($fn_bg ne '-' && ! -r $fn_bg);
 print_usage("Error: feature file $feat_file can\'t be read")
     if (defined $feat_file && ! -r $feat_file);
-print_usage('Syntax error: invalid value for output format') if $out_fmt !~ /(?:svg)/;
+print_usage('Syntax error: invalid value for output format') if $out_fmt !~ /(?:svg|html)/;
 
 # set and calculate layout dimensions
 use constant TITLE_HEIGHT => 20;
@@ -518,7 +518,32 @@ if ($out_file ne '-') {
     open my $fh, '>', $out_file;
     $out = $fh;
 }
-print {$out} $svg->xmlify;
+my $string = $svg->xmlify;
+if ($out_fmt eq 'html') {
+    print {$out} <<'HERE';
+<head><title>Coverage Plot</title></head>
+<body>
+HERE
+}
+
+open my $stream, '<', \$string;
+while (<$stream>) {
+    if ($_ =~ /^\s*<\!DOCTYPE svg/
+      || $_ =~ /^\s*<\?xml version=/ ) {
+        print {$out} $_ if ($out_fmt eq 'svg');
+    }
+    else {
+        print {$out} $_;
+    }
+}
+close $stream;
+
+if ($out_fmt eq 'html') {
+    print {$out} <<'HERE';
+</body>
+</html>
+HERE
+}
 
 exit;
 

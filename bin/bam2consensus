@@ -26,7 +26,7 @@ my $min_qual       = 10;
 my $min_depth      = 1;
 my $trim_fraction  = 0.2;
 my $sliding_window = 30;
-my $bg_bin_figs;
+my $bg_bin_figs    = 0;
 my $verbose        = 0;
 
 my $PROGRAM = 'bam2consensus';
@@ -508,8 +508,8 @@ sub handle_entry {
     if (defined $fn_bedgraph && $cons_len > 0) {
 
         # bin depth if requested
-        if (defined $bg_bin_figs) {
-            my $divisor = 10**(length($depth)-$bg_bin_figs);
+        if ($bg_bin_figs > 0) {
+            my $divisor = 10**max(0, length($depth)-$bg_bin_figs);
             $depth = int($depth/$divisor) * $divisor;
         }
 

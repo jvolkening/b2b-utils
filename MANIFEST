@@ -1,3 +1,4 @@
+bin/bam2consensus
 bin/blast_mt
 bin/boot2frac
 bin/bsml2fasta
@@ -15,7 +16,6 @@ bin/gff3_to_fa
 bin/gz2dsrc
 bin/illumina_read_qc
 bin/ncbi_blast_update
-bin/bam2consensus
 bin/plot_coverage
 bin/rm_gaps
 bin/seq_diff
@@ -24,7 +24,17 @@ bin/sync_reads
 bin/tm
 Build.PL
 MANIFEST			This list of files
+t/bam2consensus.t
 t/boot2frac.t
+t/test_data/b2c.bam
+t/test_data/b2c.mod.fa
+t/test_data/b2c.mod.fa.fai
+t/test_data/b2c.out.bg
+t/test_data/b2c.out.fa
+t/test_data/b2c.out.tsv
 t/test_data/test.newick.in
 t/test_data/test.newick.out.bs500.sf3.md
 t/test_data/test.newick.out.bs600.sf4.mp
+LICENSE
+META.yml
+META.json

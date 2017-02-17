@@ -5,13 +5,18 @@ use warnings;
 use 5.012;
 
 use autodie qw/:all/;
+use Cwd qw/abs_path/;
 use Getopt::Long;
 use Pod::Usage;
+use File::Path qw/rmtree/;
+use File::Temp qw/tempdir/;
+use File::Which qw/which/;
 
 my $PROGRAM = 'rm_chim';
-my $VERSION = 0.002;
+my $VERSION = 0.003;
 
 my $db;
+my $fa;
 my $reads = '-';
 my $threads = 1;
 my $seed = '13';
@@ -20,7 +25,8 @@ my $fn_out;
 
 GetOptions(
 
-    'fq=s'        => \$reads, 
+    'fq=s'        => \$reads,
+    'fa=s'        => \$fa,
     'db=s'        => \$db, 
     'threads=i'   => \$threads,
     'seed=i'      => \$seed,
@@ -31,6 +37,39 @@ GetOptions(
 
 ) or pod2usage( -verbose => 1 );
 
+if (defined $fa && defined $db) {
+    die "Only one of --fa or --db should be specified\n";
+}
+if (! defined $fa && ! defined $db) {
+    die "One of --fa or --db must be specified\n";
+}
+
+my $BWA = which 'bwa' // die "BWA not found. Please install or check \$PATH\n";
+
+my $tmp_dir;
+if (defined $fa) {
+
+
+    $fa = abs_path $fa;
+    $tmp_dir = tempdir( CLEANUP => 0 );
+    $db = "$tmp_dir/ref.fa"; 
+    symlink $fa => $db or die "Failed to symlink reference: $!";
+
+    open my $stderr_old, '>&', \*STDERR;
+    open STDERR, '>>', File::Spec->devnull();
+
+    my $ret = system(
+        $BWA,
+        'index',
+        $db,
+    );
+
+    open STDERR, '>&', $stderr_old;
+
+    die "BWA index failed" if ($ret);
+
+
+}
 
 my $curr_orient = 0;
 my $curr_read;
@@ -43,7 +82,11 @@ if (defined $fn_out) {
     open $out, '>', $fn_out;
 }
 
-open my $sam, '-|', 'bwa',
+open my $stderr_old, '>&', \*STDERR;
+open STDERR, '>>', File::Spec->devnull();
+
+open my $sam, '-|',
+    $BWA,
     'mem',
     '-t' => $threads,
     '-M',
@@ -53,6 +96,8 @@ open my $sam, '-|', 'bwa',
     $db,
     $reads,
 ;
+
+open STDERR, '>&', $stderr_old;
 
 while (my $line = <$sam>) {
     next if ($line =~ /^\@/);
@@ -92,14 +137,15 @@ while (my $line = <$sam>) {
             
 }
 
+close $sam;
+rmtree $tmp_dir if (defined $tmp_dir);
+
 # handle last read
 if ($curr_orient != 0x03) {
     ++$kept;
     print {$out} $curr_read;
 }
 ++$total;
-
-close $sam;
 
 my $discards = $total - $kept;
 my $perc = int($discards/$total*100*10+0.5)/10;
@@ -119,14 +165,6 @@ sequence
 rm_chim [options] --fq I<raw_reads> --db I<BWA_database>
 
 =head1 DESCRIPTION
-    'fq=s'        => \$reads, 
-    'db=s'        => \$db, 
-    'threads=i'   => \$threads,
-    'seed=i'      => \$seed,
-    'min_score=f' => \$min_score,
-    'out=s'       => \$fn_out,
-    'help'              => sub{ pod2usage(-verbose => 2); },
-    'version'           => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
 
 B<rm_chim> aims to filter out chimeric reads that appear to be techinical
 artifacts related to certain library preparation protocols. It does this by
@@ -149,7 +187,11 @@ Path to raw data in FASTQ format
 
 =item B<--db> I<bwa_prefix>
 
-Prefix of BWA database to map against
+Prefix of BWA database to map against. Either this or --fa must be specified.
+
+=item B<--fa> I<fasta>
+
+Path to reference FASTA. Either this or --db must be specified.
 
 =back
 

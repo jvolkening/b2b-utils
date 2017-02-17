@@ -14,12 +14,14 @@ my $builder = Module::Build->new(
         'Module::Build' => 0,
     },
     build_requires => {
-        'Test::More' => 0,
+        'Test::More'    => 0,
+        'File::Compare' => 0,
     },
     requires => {
         'BioX::Seq'     => 0,
         'Bio::TreeIO'   => 0,
         'Math::SigFigs' => 0,
+        'File::Which'   => 0,
     },
     meta_merge => {
         resources => {

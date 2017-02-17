@@ -1,0 +1,1031 @@
+#NEXUS
+
+begin data;
+  dimensions ntax=3 nchar=15317;
+  format datatype=dna interleave=yes gap=-;
+  matrix
+  seq_1           accaaacagagaatctgtaaggtacgatataaggcgatggagcaattgaaatcgcacggg
+  seq_2           accaaacagagaatccgtgagttacgataaaaggcgaaggagcaatcgaagtcgtacggg
+  seq_3_long_name accaaacagagaatccgtgaggtacgataaaaggcgaaggagcaatcgaagtcgtacggg
+
+  seq_1           tagaaggtgtgaatctcgagtgcgagcccgaagctcaagctcgagagtaccttctgccaa
+  seq_2           tagaaggtgtgaatctcgagtgcgagcccgaagctcaaactcgagagagccttctgccaa
+  seq_3_long_name tagaaggtgtgaatctcgagtgcgagcccgaagctcaaactcgagagagccttctgccag
+
+  seq_1           gatgtcctccgtattcgatgaatacgagcaactccttgctgctcagacacgccctaatgg
+  seq_2           aatgtcctctatattcgatgagtacgagcagctcctcgcggctcagactcgccccaatgg
+  seq_3_long_name aatgtcttctgtattcgatgagtacgagcagctcctcgcagctcagactcgccccaacgg
+
+  seq_1           atctcatggggggggagagaagggtagtaccctcaaagtggaagtgccagtcttcacact
+  seq_2           agctcatggcggaggagagaaggggagcaccttaaaaatagaggtcccggtatttactct
+  seq_3_long_name agccctcggcggaggagagaaggggagtaccttaaaagtagaagtcccggtattcactct
+
+  seq_1           caacagtgatgacccggaggacaggtggaactttgcagtcttctgccttcggattgcagt
+  seq_2           caacagtgatgacccggaagatagatggaacttcgcagtgttttgtcttcggattgctgt
+  seq_3_long_name caacagtgacgacccagaagatagatggaactttgcagtattttgtcttcggattgctgt
+
+  seq_1           cagtgaggatgcaaacaagcctctgaggcaaggagcacttatatctctactgtgctctca
+  seq_2           tagcgaggatgccaacaaaccacttaggcaaggtgctctcatatctctcttatgttccca
+  seq_3_long_name tagcgaggatgccaataaaccactcaggcagggtgctctcatatctctcttatgctccca
+
+  seq_1           ctcgcaagtgatgaggaaccatgtggcactggctggaaagcaaagtgaggcaacactggc
+  seq_2           ctctcaggtgatgaggaaccatgttgcccttgcggggaaacagaatgaggccacactggc
+  seq_3_long_name ctcccaagtgatgaggaaccatgttgcccttgcagggaaacagaatgaggccacactggc
+
+  seq_1           aatacttgagattgacggattctcaaatggtatgccgcagtttaacaacaggagtggcgt
+  seq_2           tattcttgagatcgatggttttaccgacggcgtgccccagtttaacaacaggagcggggt
+  seq_3_long_name tgttcttgagatcgatggttttaccaacggcgtgccacagttcaacaacaggagcggagt
+
+  seq_1           atctgaggagagggcccagagattcatgatgatagcaggctccctgcctcgcgcatgcag
+  seq_2           gtctgaagagagagcacagagatttatgatgatagcagggtctctccctcgggcatgcag
+  seq_3_long_name gtccgaggagagagcacaaagatttatgatgatagcaggctctctcccccgggcatgcag
+
+  seq_1           caatgggaccccgtttgtcacggccggagtggaggatgatgcccctgaagacataactga
+  seq_2           caacggtaccccgttcgtcacagctggggttgagggtgatgcaccagaagacattactga
+  seq_3_long_name caacggtaccccgttcgtcacagctggggttgaagacgatgcaccagaagacatcactga
+
+  seq_1           cactcttgagagaatcctctccatccaggttcaagtctgggttactgttgccaaagccat
+  seq_2           taccttggagaggatcctttctatccaggctcaagtatgggtcacggtggcaaaggccat
+  seq_3_long_name taccctggagaggattctctctatccaggctcaagtatgggtcacggtggccaaggccat
+
+  seq_1           gacagcttatgagaccgcagatgagtcagagaccagaagaataaacaagtacatgcaaca
+  seq_2           gactgcatatgagacagcagatgagtcagaaacaagaagaatcaataagtatatgcagca
+  seq_3_long_name gactgcatatgagacagcagatgagtcagaaacaagaagaatcaataagtacatgcagca
+
+  seq_1           gggcagggtccagaagcggtacatcctccacccggtgtgtagaagtgcgatccagcttac
+  seq_2           aggtagggtccagaagaagtacatcctccaccccgtatgcaggagcgcaatccaactcac
+  seq_3_long_name aggcagggtccagaagaagtacatcctccatcctgtatgcaggagtgcaatccaactcac
+
+  seq_1           catcagacagtcactagctgtcagaatcttcctagtgagtgagctcaagagaggtcgtaa
+  seq_2           aatcagacagtctctagcggtccgcatcttcttggttagcgagcttaagagaggccgcaa
+  seq_3_long_name aatcagacagtctctggcggttcgcattttcctggtcagtgagcttaagagaggccgtaa
+
+  seq_1           tactgctggcggcacctcaacttattacaacctcgtgggagatgtggactcatacatcag
+  seq_2           cacggcaggtgggacctccacctattacaacttggtgggggatgtagactcatacatcag
+  seq_3_long_name cacggcaggtgggacttccacctactacaacttggtaggggatgtagactcatatattag
+
+  seq_1           gaacactggtcttaccgcattcttcctcacactcaagtatggtattaacaccaagacatc
+  seq_2           gaacaccgggctcactgcattcttcctgacacttaaatatggaattaacaccaagacatc
+  seq_3_long_name gaacaccgggcttactgcgttcttcctgacacttaagtatggaattaacaccaagacatc
+
+  seq_1           cgcgcttgcactgagcagcctctccggtgacatccaaaagatgaaacagctaatgcgctt
+  seq_2           agcccttgcacttagcagcctctcaggcgatatccaaaaaatgaagcagctcatgcgctt
+  seq_3_long_name agcccttgcgcttagcagcctttcaggagatatccaaaaaatgaagcagctcatgcgctt
+
+  seq_1           gtatcggatgaaaggggagaatgccccatacatgactctactgggtgacagcgaccaaat
+  seq_2           atatcggatgaaaggggataatgcgccgtatatgacattgctcggtgacagtgaccagat
+  seq_3_long_name gtatcgaatgaaaggagataatgcgccgtatatgacattgctcggtgacagtgaccagat
+
+  seq_1           gagcttcgcaccagcagaatatgcccagctgtattcatttgcaatgggtatggcatctgt
+  seq_2           gagctttgcacccgctgagtatgcacaactctactcatttgccatgggcatggcatcaat
+  seq_3_long_name gagctttgcgcccgccgagtacgcacaactttactcctttgccatgggtatggcgtcagt
+
+  seq_1           attggacaaaggaactgtcaaataccagtttgctagggatttcatgagcacctcgttctg
+  seq_2           cctagataaaggaactagcaagtaccaattcgccagagactttatcagctcatcattctg
+  seq_3_long_name cctagataaaggaactggtaaataccaatttgccagggactttatgagcacatcattctg
+
+  seq_1           gcgacttggggtggaatatgctcaggcacagggcagtagtatcaacgaagacatggccgc
+  seq_2           gagacttggagtagagtacgctcaggctcaaggaagtagcataaatgaggatatggccgc
+  seq_3_long_name gagacttggagtagagtacgcccaggctcaaggaagcagcatcaatgaggatatggctgc
+
+  seq_1           tgaattgaaactaacaccggcagcaagaagagggcttgcggcagcagctcagagagtgtc
+  seq_2           cgagctaaagctaaccccagcagcaaggagaggcttggcagctgctgcccaaagagtgtc
+  seq_3_long_name cgagctaaagctaaccccagcagcaaggagaggcctagcagccgctgcccaacgagtgtc
+
+  seq_1           cgaggatgccagcaacatggaccttccaacccagcaagcaggtgtcctgacagggctaag
+  seq_2           tgaggagaccagcagcatagatatgctcacccaacaagccggggtcctcaccggactcaa
+  seq_3_long_name tgaggataccagcagcatagacatgcccactcaacaagccggagtccttactggactcag
+
+  seq_1           tgacagcacaccccctgctcaaccaggcggtcccagcaaaccacagagctctgccgatgg
+  seq_2           taacggaggctcccaagccccccaaggtgcaccgaacagatcacaagggcaacaggacac
+  seq_3_long_name tgaggggggatcccaagccccacaaggtggatcaaacagatcacaagggcaaccggatac
+
+  seq_1           aaatgatggtgagacccagtttcttgatctgatgcgggcagtcgctaacagcatgaggga
+  seq_2           tggggacggggagacccaatttctggatctgatgagagcggtggcaaatagcatgagaga
+  seq_3_long_name cggggatggggagacccaatttctggatctgatgagagcggtggcaaatagcatgagaga
+
+  seq_1           tgcccccaactcggcacagggcagcccccagcctgctccccccccaacccccggaggggg
+  seq_2           agcgcccaactctgcgcagggcaacccccaactggggcctcccccaacccctgcgacctc
+  seq_3_long_name agcgccaaactccgcgcaaggcaccccccaatcggggcctcccccaactcctgggccttc
+
+  seq_1           tcaggacaacgacaccgactggggatactagtcag--------aacctcgcccggtgagg
+  seq_2           ccaagacaatgacaccgactgggggtactgaccaacagcacccagcctgcctatatgaaa
+  seq_3_long_name ccaagacaatgacaccgactgggggtactgaccaacaacacccagcttgcttttatgaaa
+
+  seq_1           ac---ccagatcttcc---------ccccctccccatcacaactcgtcgccgcaccacac
+  seq_2           ccattccaacccttccgtctgcacctc------accacccaatccgcaatcccgcatagc
+  seq_3_long_name tcatcccaactcccccgcttgcacccc------gccccccagtccgcagtcctgcacggc
+
+  seq_1           aagtcg----ggaagagacatcccccgcgacc---gtccccccttgtccgaccgaccacc
+  seq_2           caaac-----ccacagagggacccccccggtt------ccctcctttccctctgcctcac
+  seq_3_long_name caaac-----ccacaaacgaaccccctcatct------acgtaccctcccccggtcccac
+
+  seq_1           agtccaacccctcgaggccaccgcagccgcaacaccaatcaccacacaccgatcatcaca
+  seq_2           aaccccacctgcccaaggcaacataggtacaatgcgactcactaatgatcaat-------
+  seq_3_long_name agccctacctgcccaaggcaacacagacacaatgtgacccactaataatcaat-------
+
+  seq_1           accccacaatctgattgattagaaaaaagtacgggtagaagagtagtgtcccgagggtgg
+  seq_2           ---acagggccaaagaaattagaaaaaagtacgggtagaagggagtcattcaggggtcag
+  seq_3_long_name ---atagagccaaagaaattagaaaaaagtacgggtagaagggaggcattcagagaccag
+
+  seq_1           gcatccaagcctacgcctcgtccactctctctgcccaacaagccggtgcaagcatggcta
+  seq_2           ggcgagtcacccgggtctccgctctcccttctacctagtggattagagtgaatatggcca
+  seq_3_long_name ggcgagtcacccaggtctctgttctcccttctgcctagtggattagggtgaagatggcca
+
+  seq_1           cgttcacggacgcagagatagacgagttgttcgagacaagcgggactgtcattgacagca
+  seq_2           cctttacagatgcggaaatcgacgagctctttgagaccagtggaactgtcattgacagta
+  seq_3_long_name ccttcacagatgcggaaatcgacgagctatttgaaaccagtggaactgtcatagacagca
+
+  seq_1           tcatcacagctcagggcaaaccagtggagactgtagggcggagcgccattccacaaggga
+  seq_2           taattactgcccaaggaaaaccagtagagactgtcggaaggagtgcaatcccacaaggca
+  seq_3_long_name taattacggcccaggggaaaccagtagagactgttggaaggagtgcaatcccacaaggca
+
+  seq_1           agacgaaagccctcagtctagcctgggagaagcacggcaacgtgaacgccccagctgccc
+  seq_2           aaaccaaggctttgagcacagcatgggagaaacacaggagcatccagtctccagccagcc
+  seq_3_long_name aaaccaaggcgctgagcgcagcatgggagaaacacgggagtatccagccaccagccaacc
+
+  seq_1           aagaatcagctggagagcaggaccagcccgggcagaaccaggccagcagcagcaaccggg
+  seq_2           aggacacctccgatcgacaggatagaccag-----------------acaaaccgctgtc
+  seq_3_long_name aagacacccccgaccgacaagacaaatcag-----------------acaaacaaccgtc
+
+  seq_1           cacccccggaagaaggactccatccg-----------------tcccaagcccaagccgc
+  seq_2           cacacccgagcaagcgagtccgaacgacagcctgcctgccacatccaccgaccagcctcc
+  seq_3_long_name tgtacctgagcaaatggctccacacgacagcccgccagccacatccaccgaccagctccc
+
+  seq_1           cgcacagccccaagaggatgcaaatgaatcccaacttaagacaggggcaagcagctcact
+  seq_2           cactcagaacgcagatgaagccagcgacacacagctcaagaccggagcaagcaactctct
+  seq_3_long_name cacccaggccgcggacgaagccggcgacacacaactcaagaccggagcgagcaactccct
+
+  seq_1           actctccatgctcgacaagctcagcaacaagtcatcgaatgctaaaaagggcccacctca
+  seq_2           gttatcgatgcttgataaactcagcaataagtcatctaatgctaaaaagggcccatggtc
+  seq_3_long_name gctgtccatgcttgacaagctcagcaacaagtcgtccaatgctaaaaagggcccctggcc
+
+  seq_1           gagccctccacagcaggccccccacccccaagggagccccacagc---ggaacaagccca
+  seq_2           gagccctcaggaagggcacaaccaacgtct----gaatcaacaacaggggagccaaccga
+  seq_3_long_name gagcccccaggaaaggcatcatcaacgtcc----accgcaacagcaggggagccaaccaa
+
+  seq_1           a-cgtggggccaatcaggggagggctcagtgggagacggggcaccaggtcgccccaggcc
+  seq_2           gccgcgggaacagtcaagagagaccgca------------gaaccaggccaaggtcatcc
+  seq_3_long_name gccgcggaaacaatcaagagagaccgca------------gaaccaggccaaagccgccc
+
+  seq_1           ctggactcccgggcaccggcgtgaacacagcatttcctggacaatggggggggtcaccac
+  seq_2           ctggaaaccaggtcacagacgcgaacacagcatatcatggacaatgggaggagtcacaac
+  seq_3_long_name ctggaaaccagggcacagacgcgaacacagcatatcatggacaatgggaggagtcacaac
+
+  seq_1           aatcagctggtgcaacccagcatgctccccgatcagggcagaaccaagacagtactcctg
+  seq_2           tatcagctggtgcaacccatcatgctctccgattagagcagagccaagacaatactcctg
+  seq_3_long_name tatcagctggtgcaacccatcatgctctccgatcagggcagagccaagacaatactcctg
+
+  seq_1           tgtctgtggatcatgtccagctacctgtagactttgtgcaggcgatgatgtctatgatgg
+  seq_2           tatctgtggatcatgtccagttacctgtcgactttgcgcaggcgatgatgtctatgatgg
+  seq_3_long_name cacctgtggatcatgtccagctacctgtcgactttgtgcaagcgatgatgtctatgatgg
+
+  seq_1           aggcgatctcacagagggtaagcaagattgattatcaattggatctagttctcaagcaaa
+  seq_2           aggcgatatcacagagggtaagtaaagttgactatcaactggaccttgtcttgaaacaga
+  seq_3_long_name aggcgatatcacagagggtaagtaaagttgactaccagttggaccttgtcctaaaacaga
+
+  seq_1           cctcatctatcccgaccatgagatcggaaatacaacaattgaagacatcggttgcagtga
+  seq_2           cttcttccatccccatgatgcggtctgaaatccagcaactgaagacgtctgttgcggtca
+  seq_3_long_name catcttccatccccatgatgcggtccgaaatccagcagctgaaaacatctgttgcagtca
+
+  seq_1           tggaagcaaacctaggaatgatgaagattctagaccccggctgtgcaaacgtgtcctctc
+  seq_2           tggaagccaatttgggcatgatgaagatcctagatcctggttgtgccaatgtttcatctc
+  seq_3_long_name tggaagccaatttgggcatgatgaagattctggatcctggttgtgccaatgtttcatctc
+
+  seq_1           tgagcgatctacgcgcagtggctaaatctcaccccgtgttagttgcaggtccaggtgacc
+  seq_2           taagtgatctacgggcagttgctcgatcccacccggttttaatttctggccccggagacc
+  seq_3_long_name taagtgatctaagggcagtcgcccgatcccacccagttttagtttctggccccggagacc
+
+  seq_1           cgtcaccctacgtgacgcaaggaggagagattgctcttaacaagctgtcgcagccagtac
+  seq_2           catctccttatgtgacccaaggaggcgaaatggcactcaataaactctcgcagccggtgc
+  seq_3_long_name catctccttatgtgactcaaggaggtgaaatggcgcttaataaactctcgcaaccggtgc
+
+  seq_1           cccacccatcggaccttataaagcatgcaacttctggcggcccggatatagggattgaga
+  seq_2           aacacccctctgaattgatcaaacctgccatggcaagcgggcctgatataggattggaga
+  seq_3_long_name aacacccctctgagttggttaaacctgtcatggcaggcgggcccgacgtaggagtggaga
+
+  seq_1           gggacactgttcgtgcgcttattctatcaagacctatgcacccgagctcgtcaagcaaat
+  seq_2           aagacactgtccgtgcattgatcatgtcacgccctatgcacccgagctcttcaactaagc
+  seq_3_long_name gagacaccgtccgtgcattgatcatgtcacgccctatgcatccgagctcctcagctaagc
+
+  seq_1           tgctcagcaagctcgactcagcagggtcaattgaagagatcaggaagatcaagcgccttg
+  seq_2           tcttgagcaaactggacgcagccggatcgattgaggaaattaggaaaattaagcgccttg
+  seq_3_long_name tcctgagcaagctggatgcagctggatcgattgaagagatcagaaaaatcaagcgccttg
+
+  seq_1           cactgaatggataaagagcagggcaaagccaggtcagctgggagtaaggcccatctctta
+  seq_2           cactgaatggttaatcaccaccgcaacccgcagcagatc----------cctgccaacct
+  seq_3_long_name cactgaatggctaatcatcactgcaactcgcagctggtc----------tccgttcgctc
+
+  seq_1           gcagataggaagaatctctgataatgaagctttaagtataatttagcaagtaggtgcagc
+  seq_2           aacaccacacggtatccg---caccaagctcctctctgcaagcccaaggtccaacacctc
+  seq_3_long_name agaattacaaggtatctg---catcgggcccctttttgcaaacccaaggtccagtaatcc
+
+  seq_1           aatcatcaaccc-------------------gaacaccccatagttaaatcattaatgca
+  seq_2           aagtgacaaccctgtcctgcttcttctg------ccctgctaaatgatcgcgcagctgca
+  seq_3_long_name gagcgacgaccccctcccgttacctctg------cctcgctgaatgatcacgcaactgta
+
+  seq_1           attgattatgcgcacacggtaattaagaaaaaatacgggtagaatcggagcatcccgatt
+  seq_2           atcaatctagcaatattagggattaagaaaaaatacgggtagaatcggagtgccctgatt
+  seq_3_long_name attaatccagctacatcaaaaattaagaaaaaatacgggtagaatcggagtgccccgatt
+
+  seq_1           gtgccaagatggattcatctaggacaatcgggttatacttcgattctgccctaccatcaa
+  seq_2           gtgccaagatggactcatctaggacaatcgggctgtactttgattctacccttccttcta
+  seq_3_long_name gtgccaagatggactcatctaggacaatcgggctgtactttgattctgcccttccttcta
+
+  seq_1           gtagccttctggcctttccaatcgtccttcaggacacaggagatgggaagaagcagattg
+  seq_2           gcaacctgctagcattcccgatcgtcctacaagatacaggagatgggaagaagcaaatcg
+  seq_3_long_name gcaacctgttagcattcccgatcgtcctacaagacacaggggacgggaagaaacaaatcg
+
+  seq_1           ccccacagtatcggatacagcgcctggattcctggacagacagcaaggaggactcggtgt
+  seq_2           tcccgcaatacaggatccagcgtcttgactcgtggacagagagcaaagaagactcagtat
+  seq_3_long_name ccccgcaatacaggatccagcgtcttgactcgtggacagacagcaaagaagactcggtat
+
+  seq_1           tcatcaccacatacggattcatctttcaggtcgggagtgaggaaacttctgtagggatga
+  seq_2           tcatcaccacctacggattcatctgtcaggtcgggagtgaagaagccactgtcggcatga
+  seq_3_long_name tcatcactacctatggattcatctttcaggttgggaatgaagaagccactgtcggcatga
+
+  seq_1           taaatgacaacccgcggcgtgaactgctatccgctgccatgttgtgtctgggcagtgtcc
+  seq_2           tcaatgataatcccaagcgcgagttactttccgctgctatgctctgcctagggagtgtac
+  seq_3_long_name ttaatgataatcccaagcgcgagttactttctgctgcaatgctctgcctgggaagtgtcc
+
+  seq_1           ccaatgcgggagatcttgtggagctggcgagggcttgtctggctatggtgataacatgca
+  seq_2           cgaatgtcggggatcttgttgagctggcaagggcctgcctcactatggcggtgacatgca
+  seq_3_long_name caaatgtcggagatcttgttgagctggcaagggcctgcctcactatggttgtgacatgca
+
+  seq_1           aaaagagtgccacgaatacagagaggatggtcttctcggtggtgcaagcgccgcaggtgt
+  seq_2           agaagagtgcaactaacactgagagaatggtcttctcagtagtgcaggcaccccaggttc
+  seq_3_long_name agaagagtgcaaccaacaccgagagaatggtcttctcagtagtgcaggcaccccaggtgc
+
+  seq_1           tgcagagttgcagggtggttgcaaataaatactcctctgtgaatgcagtaaagcatgtga
+  seq_2           tgcaaagctgtagggttgtggcaaacaaatactcgtcggtgaacgcagtcaaacacgtga
+  seq_3_long_name tgcaaagctgcagggttgtggcaaacaaatactcgtcggtgaatgcagtcaagcacgtga
+
+  seq_1           aggctcctgagaagataccgggcagcgggacacttgaatacaaggtaaatttcgtgtcgc
+  seq_2           gagcgccagagaagatccctgggagtggaaccctagagtacaaagtaaactttgtctctc
+  seq_3_long_name aagcgccagagaagatcccagggagcggaactctagagtacaaggtgaattttgtctctt
+
+  seq_1           tgaccgtagtacccaaaaaggacgtttacaagattccaaccgcagcgctcaaggtgtctg
+  seq_2           tgaccgtggtgccaagaaaggacgtctacaagatcccaactgcagcacttaaggtctctg
+  seq_3_long_name tgaccgtggtgccaaggaaggatgtctacaaaataccaactgcagcactgaaggtctccg
+
+  seq_1           gatcaagtctctacaatcttgcgctaaatgtcactattgatgtggaggtagatcacaaaa
+  seq_2           gctccagtctgtacaatcttgcgctcaatgtcacgattgatgtggaagtagacccgaaga
+  seq_3_long_name gctcgagtctgtacaatcttgcgctcaatgtcactattgatgtggaggtagacccgaaga
+
+  seq_1           gcccgctggtaaaatcactgtctaaatcagagaacgggtactacgcaaacctctttctgc
+  seq_2           gcccgttggtcaaatctctttcaaagtcagacagtgggtactatgctaatctcttcttac
+  seq_3_long_name gcccgttggtcaaatctctgtccaggtccgacagtggacactatgctaatctcttcttac
+
+  seq_1           acattgggcttatgtcaacggtagacaagaaaggaagaaaggtgacattcgacaagttgg
+  seq_2           atattgggcttatgtccactatagataagaaggggaagaaagtgacatttgacaagctgg
+  seq_3_long_name atattgggcttatgtccaccgtagacaagaaggggaagaaagtgacatttgacagcctgg
+
+  seq_1           aaaggaagctccggaggctcgatctgtccgtggggctcagcgatgtacttgggccatcta
+  seq_2           aaaggaagatacggagacttgatctatctgtaggactcagtgacgtgctcgggccttccg
+  seq_3_long_name agaggaagataaggagacttgatctatctgtcgggctcagtgacgtgcttgggccttccg
+
+  seq_1           tcttagtcaaagcaagaggtgcacgtactaagctcctggcaccatttttctcaagcagcg
+  seq_2           tacttataaaggcgagaggtgcacggactaagctgctggcacctttcttctccagcagcg
+  seq_3_long_name tacttgtgaaggcgaggggcgcaaggactaagttgctggcacctttcttctctagcagtg
+
+  seq_1           gaaccgcatgttatccgattgccaatgcatcccctcaggtggcaaagatactgtggagtc
+  seq_2           ggacagcctgctatcccatagcaaatgcctctccacaggtggccaagatactctggagcc
+  seq_3_long_name ggacagcctgctatcccatagcaaatgcctctcctcaggtggctaagatactctggagtc
+
+  seq_1           agacagcgagcctgcgcagcgtcaaagtgatcattcaagctggcacacagagggctgtgg
+  seq_2           aaactgcgtgcctgcggagtgtaaaagtcatcatccaagcaggcacccagcgcgctgttg
+  seq_3_long_name aaaccgcatgcttgcggagtgtcaaagtaattatccaagcaggtacccagcgtgccgtcg
+
+  seq_1           ctgtgactgcagaccacgaggtaacatccaccaagctggagaaagggcatactattgcca
+  seq_2           cagtgaccgccgaccacgaggttacttccaccaagctagagaaggggcacactattgcca
+  seq_3_long_name cagtgaccgctgaccacgaggtcacctctactaagctggagaaggggcataccattgcca
+
+  seq_1           aatacaacccgttcaaaaagtaagcactcgctgcagctgacactataaagaatcatctgc
+  seq_2           aatacaatcccttcaagaaataggctacgtct----ttgagattgc---actccacccat
+  seq_3_long_name aatacaatcctttcaagaaataggctgcatct----ccgagattgc---actctgttcat
+
+  seq_1           t-------aacagatcaacactaatcaagtctgataattgaacctttaaagatagtttga
+  seq_2           cttcccagatcactatgacactaaataatgatttgccttgattacttataattagttcgc
+  seq_3_long_name ttccctggatcaccatgacactaaataatgatctgtcttaattacttatagttagttcgc
+
+  seq_1           ttcataatagcattagaaaaaacacgggtagaaggtatggggtctcgacctgcacccatg
+  seq_2           ctgtctatcaaattagaaaaaacacgggtagaagattctggatcccggttggtgccttca
+  seq_3_long_name ctgtctattgaattagaaaaaacacgggtagaagattctggatcccggttggcgcctcca
+
+  seq_1           gcaggcagaatggatcccaagccttctaccagctatttgcacgcttttccactgatcttc
+  seq_2           aggtgcaagatgggttccaagtcttctaccaggttcccagtacctctaatgctgaccgtc
+  seq_3_long_name aggtgcaagatgggctccagatcttctaccaggatcccagtacctctgatgctgactgtt
+
+  seq_1           gtggctatcagtttagtattcatggctggaagggcatcggcactggatgggcggccgctc
+  seq_2           cgagtcatgctggcactgagttgcgtctgtccggccagcgcccttgatggcaggcctctt
+  seq_3_long_name cgggtcgcgctggcattgtgttgcgtccgtctgacaagctcccttgatggcaggcctctt
+
+  seq_1           gccgccgcaggaatagtagtcacaggagacaaggcagttaatatatacacatcgtcgcag
+  seq_2           gcggctgcagggattgtggtaacaggagacaaagcggtcaacatatacacatcatctcag
+  seq_3_long_name gcagctgcagggattgtggtaacaggagacaaagcagtcaacatatacacctcatcccag
+
+  seq_1           acagggacaattatcatcaaattattacccaatatgcccaaagacaaagagcaatgtgct
+  seq_2           acagggtcaatcataatcaagttactcccgaatatgcccaaggataaagaggcgtgtgca
+  seq_3_long_name acagggtcgatcatagtcaagttactccccaatatgcccaaggacaaagaggcatgtgca
+
+  seq_1           aagagccccctagatgcatacaataggactcttacaaccctccttgccccgctcggcgat
+  seq_2           aaagcaccgttggaggcatacaacaggacattgactactttgctcacccctcttggtgat
+  seq_3_long_name aaagccccgttggaggcatacaacaggacattgactactctgctcaccccccttggtgat
+
+  seq_1           tcgattaggagaatccaagagtcggtaaccacatcaggaggagaacggcaggagcgtttg
+  seq_2           tctatccgtaggatacaagagtctgtgaccacgtccggaggaagaaaacagggacgcctt
+  seq_3_long_name tctatccgtaggatacaagagtccgtgactacatctggaggagggaaacagggacgcctt
+
+  seq_1           gtaggggcaataataggaggtgtcgcattaggtgtagccaccgcagcgcagatcacagcg
+  seq_2           ataggagccattatcggtggtgtagctctcggggtcgcgaccgctgcacaaataacagca
+  seq_3_long_name ataggcgctattatcggtggtgcggctctcggggttgcaaccgctgcacagataacagca
+
+  seq_1           gcttctgccctcatacaagccaaccagaatgctgcaaacatactgaaattaaaggagagt
+  seq_2           gcctcggctttgatacaagccaatcaaaatgctgccaacatcctccggctcaaagagagc
+  seq_3_long_name gcctcggctctgatacaggccaaccaaaatgctgccaacattctccgacttaaagagagc
+
+  seq_1           attgccgctaccaatgaagcagtacatgaggtcacaagtgggctgtcccagctggctgtt
+  seq_2           attgctgcaaccaatgaggctgtacacgaggtcactgacggattatcacaactagcagtg
+  seq_3_long_name attgctgcaaccaatgaggctgtgcacgaagtcactgacggattatcacaactggccgtg
+
+  seq_1           gccgtaggtaagatgcagcagtttgtaaacgaccaattcaataagacagcacaagagatc
+  seq_2           gcagttgggaagatgcagcaatttgttaatgaccagtttaataagacagcccaggaattg
+  seq_3_long_name gcagtcgggaagatgcaacaatttgttaatgaccagtttaataaaacagctcaggaattg
+
+  seq_1           gactgtattaagatcacacaacaggttggggtggagttgaatctatacttgaccgaactg
+  seq_2           gactgtataaaaattgcacagcaagttggtgtagaactcaacctgtacttaactgaattg
+  seq_3_long_name gactgtataaaaattacacagcaggttggtgtagaactcaacttgtacctaactgaattg
+
+  seq_1           acaactgtgttcggaccgcaaatcacatcccctgcactcacgcagttgaccatccaggcc
+  seq_2           actacagtatttgggccgcaaatcacttcccctgccttaactcagctgactatccaggcg
+  seq_3_long_name actacagtattcgggccacaaatcacttcccctgccctaacccagctgaccatccaggca
+
+  seq_1           ttatataatctggcgggtgggaacatggattacatgctgacaaagctgggagtgggtaat
+  seq_2           ctttacaatctagctggtgggaatatggattacttgttaactaagttaggtgtggggaat
+  seq_3_long_name ctttataatctagctggtgggaatatggattacttgttgacaaagttaggtgtagggaac
+
+  seq_1           aatcagctcagttctctgattagtagcggcctaatatcagggaatccaattctctatgac
+  seq_2           aaccaactcagctcattaattagtagtggcctgatcaccggcaaccctattctgtatgac
+  seq_3_long_name aaccaacttagctcattaattggtagcggcctgatcaccggcaatcctatcttgtacgac
+
+  seq_1           tcgcaaactcagcttctgggtatacaggtgactctcccctctgtgggcaatctgaacaac
+  seq_2           tcacagactcaactcttgggtatacaggtaatcctaccctcagtcgggaatctaaataat
+  seq_3_long_name tcacagactcagctcttgggtatacaggtaaccctaccctcagtcgggaacctgaataat
+
+  seq_1           atgcgcgccacatatctggaaaccctctctgtaagtacgaacaagggattcgcatccgca
+  seq_2           atgcgtgccacctatctggaaaccttgtctgtaagtacaactaaaggatttgcctcagct
+  seq_3_long_name atgcgtgccacctacttggaaactttgtctgtaagtacaaccaaaggatttgcctcagca
+
+  seq_1           ttagtgcctaaggtggtaactcaggtaggctccgtaattgaagagctggatacgtcgtat
+  seq_2           cttgtcccaaaggtagtgacacaggtcggttctgtgatagaagagcttgacacctcatac
+  seq_3_long_name cttgtcccaaaggtggtgacacaagtcggttccgtgatagaagaacttgacacctcatac
+
+  seq_1           tgcatagagacagacctggatctgtactgcactagaattgtaacattccccatgtctcca
+  seq_2           tgtatagagaccgatttggatctatattgtacaagaatagtgacattccctatgtctcct
+  seq_3_long_name tgcatagagaccgatttagatttatattgtacaagaatagtgacattccctatgtctcct
+
+  seq_1           ggtatcttctcctgtctcggtggaaacacctcagcgtgcatgtattctaagactgaagga
+  seq_2           ggtatttattcctgtttgagtggcaatacatctgcttgcatgtactcaaagacagaaggc
+  seq_3_long_name ggtatttactcctgtttgagcggcaatacatcggcttgtatgtattcgaagactgagggt
+
+  seq_1           gcactcaccacaccatatatgacactcaaaggatcagtcatagcaaattgcaagatgaca
+  seq_2           gcactcactacgccgtatatgaccctcaaaggctcagttattgcaaactgtaagatgaca
+  seq_3_long_name gcactcactacaccgtacatgactctcaaaggctcggttattgccaactgtaagatgaca
+
+  seq_1           acatgtaggtgcgcagatcccccggggataatctcacagaattatggagaggctgtctct
+  seq_2           acatgtaggtgtgcagatcccccgggtatcatatcgcaaaattatggagaagctgtgtct
+  seq_3_long_name acatgtagatgtgcagaccccccgggtatcatatcgcagaattatggagaagctgtgtct
+
+  seq_1           ctaatagacaaaaaggtatgcaacattctgactcttgacgggatcaccttgcgccttagc
+  seq_2           ctaatagataggcaatcatgcaatatcctatccttagacgggataactttgaggctcagt
+  seq_3_long_name ctaatagataggcaatcatgcaatatcttatccttggacgggataactttgaggctcagt
+
+  seq_1           ggggaattcgatgcaacctatcagaaaaatatctcaattcaggattcccaggtggtgatt
+  seq_2           ggggaattcgatgcaacttatcaaaggaatatctcaatacaagattctcaagttatagtg
+  seq_3_long_name ggggaatttgatgcaacttatcaaaagaatatctcaatacaagattctcaagtaatcgtg
+
+  seq_1           actgggaatctagatatatccactgagttagggaatgtgaataattcaatcagcaatgct
+  seq_2           acaggcaatcttgatatctcaactgagcttgggaatgtcaacaactcgataagcaatgct
+  seq_3_long_name acaggcaatctcgatatctcaactgagcttgggaatgttaacaactcgataagtaatgct
+
+  seq_1           ctagacaagctagaagagagtaacagcaagctggacaaagttaatgtgaggcttaccagt
+  seq_2           ttggataagttagaggaaagcaacagcaaactagacaaggtcaatgtcaaattggccagc
+  seq_3_long_name ctagataagttagaggaaagcaacagcaaactagacaaggtcaatgtcaaactgaccagc
+
+  seq_1           acatctgccctaatcacatatattgtcttgacaacaatagcactgatatgcgggatagtc
+  seq_2           acatccgctcttattacctacatcgttttaactgtcatatctctcatatgtggtatactt
+  seq_3_long_name acatctgccctcatcacctatattgttctaactgccatatctcttgtttgcggcatactt
+
+  seq_1           agtttagtcctcgcctgctatataatgtacaaacaaaaggcccagcaaaaaacactgctg
+  seq_2           agcctggttctagcatgctacctgatgtacaagcaaaaggcgcaacagaagaccttgctg
+  seq_3_long_name agcttggttctagcgtgctacctgatgtacaagcaaaaggcgcaacagaagactctgtta
+
+  seq_1           tggctcgggaacaacaccttggaccagatgagagcaacgacaaagatgtaaaatctcatt
+  seq_2           tggcttgggaataataccctagaccagatgagggccaatacaaaaatgtgaa--------
+  seq_3_long_name tggcttgggaataataccctggaccaaatgagggccactacaaaaatgtgaa--------
+
+  seq_1           gttgcataagctgataaaacacatctctatta----------tgtaaactaacattgcta
+  seq_2           --tgcggatgagaggcagaaacatccccaatatcagtttacatgtaaagtctgataacct
+  seq_3_long_name --cgtaaatgagaggtgggggcatctccaataacagtttgtgtgtaaaatccggcagcct
+
+  seq_1           aattgcttcaataccttagaaaaaactgagtctcattggaggaatggtgaagatatacgg
+  seq_2           attaattagaaggattaagaaaaaactaccggatatagataaccaaagggcgatatacgg
+  seq_3_long_name gttaattagaagacttaagaaaaaactgccggatgtagatgaccaaaggataatatacgg
+
+  seq_1           gtagaacagtcggaggggtcgcctccatttagggagcgtgaccttgatctgtctgttctg
+  seq_2           gtagaacggtcggggggaccgtccctcaatcaggagccaggcctcacaacatccgttcta
+  seq_3_long_name gtagaacggtcggagaggccgcccctcaaccgggagccgggcctcacaacatccgttcta
+
+  seq_1           ccaccccatagagggacccaggagaccatggagagaggggtcagccaagttgcacttgag
+  seq_2           ccgcatcaccaacagcagccttctgccatggaccgcgcagttagccaagttgcgctagag
+  seq_3_long_name ccgcatcaccaacagcagtcttcagtcatggaccgcgcagttagccaagttgcgttagag
+
+  seq_1           aatgatgaaagggaggcaaaaaacacatggaggttggtgttcagggtgactgttcttttt
+  seq_2           aatgatgaaagagaggcaaggaatacatggcgcctggtattccggatcgcaatcctattt
+  seq_3_long_name aatgatgagagagaggcaaagaatacatggcgtttggtattccggatcgcgatcctgctt
+
+  seq_1           ctcactatagtgactcttgccatctccgcagccgccctcgcattcagcatgaatgccagc
+  seq_2           ttaacggtagtgactctagccgtctctgcagctgcccttgcatatagtatggaagccagc
+  seq_3_long_name ctaacagttgtgaccttagccatctctgcagctgccctcgcgtatagtatggaggctagc
+
+  seq_1           acacctcaggacttggaaggaataccagtagccatatcaaaggtagaggataagattacc
+  seq_2           acacctagcgatcttgtaggcataccgactgcgatctctagagcagaggaaaagattgca
+  seq_3_long_name acacctagcgaccttgtaggcataccgactgcgatctctagagcagaggaaaggattaca
+
+  seq_1           tctgctcttggagcgagccaggacgtaatggacaggatatacaaacaagtggcattagag
+  seq_2           tctgcactcggttccaatcaagatgtagtagatagaatatataagcaggtggccctcgaa
+  seq_3_long_name tctgcactcggttccaaccaagatgtagtagataggatttataagcaggtggccctcgaa
+
+  seq_1           tcgcccctagccctgctcaacaccgaatccacgatcatgaacgccttgacatcactgtct
+  seq_2           tctccactggcattgctaaacaccgaatccacaattatgaacgcaataacatctctctct
+  seq_3_long_name tctccattggcattgttaaacaccgagtctacaattatgaatgcaataacgtctctctct
+
+  seq_1           taccaaatcaacggtgcagccaatgccagcggatgtggggcccctgtacctgatcctgat
+  seq_2           tatcagatcaatggggctgcaaatagcagcggatgtggagcacccattcatgatccagat
+  seq_3_long_name tatcagatcaatagggctgcaaatagcagcgggtgtggggcgcctattcatgatccggat
+
+  seq_1           tacattggagggataggcaaggagctgattgtagatgacacaagtgatgtaacatctttc
+  seq_2           tatattgggggaataggtaaagaacttattgtagatgatgatagcgacgtcacatcattc
+  seq_3_long_name tatatcgggggaataggtaaagaacttattgtagatgatgctagtgatgtcacttcattc
+
+  seq_1           tacccatctgcattccaagaacaccttaatttcatccctgcacctaccacaggatccggc
+  seq_2           tatccctccgcattccaagaacatctgaactttatcccggcgcctactacaggatcaagc
+  seq_3_long_name tatccctctgcgttccaagaacacctgaactttatcccggcgcctactacaggatcaggt
+
+  seq_1           tgtacccgaatcccatcttttgatatgagtgccactcattattgctatacacataatgtc
+  seq_2           tgcactcggataccctcatttgatatgagtgctacccactactgttatactcacaatgtg
+  seq_3_long_name tgcactcgaataccctcatttgacatgagtgctacccactattgttatactcacaatgtg
+
+  seq_1           atcttgtcagggtgcagagatcattcacattcgcatcaatatctagctttaggggtttta
+  seq_2           atattatctggatgcagagatcactcgcactcacatcaatatttagcacttggtgtgctt
+  seq_3_long_name atattatctggctgcagggatcactcgcactcacatcagtacctagcacttggcgtgctt
+
+  seq_1           aggacttcagcaactggtagagtgttcttttcgacccttcgctcaatcaatctagatgat
+  seq_2           cggacatctgcaacagggagggtattcttttccactctgcgttccatcaatctggatgac
+  seq_3_long_name cggacatctgcaacagggagggtattcttttctactctgcgttccattaacctggatgac
+
+  seq_1           actcagaacaggaagtcatgtagtgtgagcgcaacgcccctagggtgtgatatgttatgc
+  seq_2           acccaaaatcggaagtcttgcagtgtgagtgcaactcccttgggttgtgatatgctatgt
+  seq_3_long_name acccaaaaccgaaagtcttgcagtgtgagtgcaactcccttaggttgtgatatgctgtgc
+
+  seq_1           tctaaggtcacagagactgaagaggaggactaccaatcgacggaccctacactgatggtg
+  seq_2           tccaaagtcacagagactgaagaagaggattataactcagctgcccccacgtcgatggta
+  seq_3_long_name tctaaggtcacagagactgagaaagaggattataactcagctatcccaacatcgatggta
+
+  seq_1           catgggaggctaggatttgatggacagtatcatgagagagatttggacgttcacactctt
+  seq_2           cacgggaggttagggttcgacggccaatatcatgagaaggacctagacgtcacaacacta
+  seq_3_long_name catggaaggttagggttcgacggccaataccatgagaaggacttagatgtcacaacacta
+
+  seq_1           tttggggattgggtggctaattaccctggggttggtggtggatccttcataaacaaccgt
+  seq_2           ttcgaggactgggtggcaaactacccaggagtagggggcgggtcttttattgacaatcgc
+  seq_3_long_name ttcggagactgggtggcgaattacccaggagtggggggtggatcctttattgacaaccgc
+
+  seq_1           gtctggttcccagtgtacggtggtttgaaaccaggctccccaacagacaaaaggcaagag
+  seq_2           gtatggttcccagtttacggagggctaagacccaattcgcccagtgacaccgcacaagaa
+  seq_3_long_name gtgtggttcccagtttatggagggctaaaacccaactcgcctagtgacactgcacaagaa
+
+  seq_1           gggcagtatgctatttacaagaggtacaatgatacgtgccctgatgatcaggagtatcag
+  seq_2           gggaaatatgtaatatacaagcgatataatgacacatgtccagacgagcaagattatcag
+  seq_3_long_name gggaaatatgtaatatacaagcgatacaatgacacatgtccagatgagcaagattaccag
+
+  seq_1           gtcaggatggccaagtcggcatacaagcctaatcgattcggggggaagcgagtccaacag
+  seq_2           attcgaatggctaagtcttcatataagcctgggcggtttggtgggaaacgcgtacagcaa
+  seq_3_long_name attcgaatggctaagtcttcgtacaagcctgggcggtttggtgggaaacgcgtgcaacag
+
+  seq_1           gcgatcttatccataggtgtatcaaccacccttgcagatgatccagtactaaccgtgact
+  seq_2           gccatcttatctatcaaagtgtcaacatccttgagtgaggacccagtgctgactgtaccg
+  seq_3_long_name gccatcttatctatcaaagtgtctacatccttgggcgaagacccggtgctgactataccg
+
+  seq_1           tctaataccatcactctcatgggtgctgagggcagggtgatgactgtcgggacctctcat
+  seq_2           cccaacacagtcacactcatgggggctgaaggcagagttctcacagtagggacatctcat
+  seq_3_long_name cccaacacaatcacactcatgggggctgaaggcagagttctcacagtagggacatctcac
+
+  seq_1           tacttgtaccagcgcgggtcttcttattactcccctgccatactttatcccttgaccatt
+  seq_2           ttcttttatcaacgagggtcatcgtacttctcccctgccctactataccccatgatagtc
+  seq_3_long_name ttcttgtatcaacgagggtcatcatacttctctcctgccttattatatcctatgacagtc
+
+  seq_1           gcaaataagactgcgactctccaggacccttataagttcaatgctttcacaaggccaggc
+  seq_2           agtaacaaaacagccactcttcatagtccttatatattcaatgcttttactcgaccaggt
+  seq_3_long_name agcaacaaaacagccactcttcatagtccttatacattcaacgccttcactcgaccaggt
+
+  seq_1           agtgtcccgtgtcaagcgtccgccaggtgtccaaactcttgtgtaacgggggtgtacact
+  seq_2           agtatcccttgccaggcttcagcaaaatgccctaactcatgtgttaccggagtctatact
+  seq_3_long_name agtgtcccttgccaggcttcagcaagatgccctaattcatgtgttaccggggtctatact
+
+  seq_1           gacccgtatccaatagtatttcacaagaatcacacactgcgaggagtgtttggtacaatg
+  seq_2           aatccatatcccttggtcttctataggaaccacaccttgcgaggggtattcgggacgatg
+  seq_3_long_name gatccatatcccttagtcttttataggaaccataccttgcgaggagtattcggaacaatg
+
+  seq_1           ttggatgacgagcaagccagactgaacccagtttctgcagtatttgattccattgcacgg
+  seq_2           cttgatgatgtacaagcaagactcaacccggtatctgcagtatttgacggcatatctcgc
+  seq_3_long_name cttgatgatgaacaagcaagactcaaccctgtatctgcagtattcgacagcatatcccgc
+
+  seq_1           agtcgagtaactagggtaagctctagcagcaccaaagcagcatacacaacatctacttgt
+  seq_2           agtcgcataacccgggtgagttcaggcagcaccaaggcagcatacacaacatcgacatgt
+  seq_3_long_name agtcgcataacccgggtgagttcaagcagcaccaaggcagcatacacgacatcaacgtgt
+
+  seq_1           ttcaaagtggtgaagacagggaaagtatactgtctaagtattgctgagatctctaataca
+  seq_2           tttaaagttgtaaaggccaataaaacctattgtctcagcattgcagaaatatccaatacc
+  seq_3_long_name tttaaagttgtcaagaccaataaaacctattgtctcagcattgctgaaatatccaacacc
+
+  seq_1           ctattcggggagtttagaatagtaccgctactagttgagatcctaagggatgaagggcga
+  seq_2           ctattcggggaattcagaatcgtccctttactagttgagattctcaaggatgatggggtt
+  seq_3_long_name ctcttcggggaattcagaattgtccctttactagttgagattctcaaggatgatggggtc
+
+  seq_1           tcagaggcaagatcagctctgaccacccagggacacccaggctggaatgatgaagttgtt
+  seq_2           agagaagccaggtctagccggtagagtcaactgtgagaaggttggaaagatgacattgta
+  seq_3_long_name agagaggccaggtctggccgattgagtcagctgcaagagggttggaaggatgacattgta
+
+  seq_1           gatccaatattctgcgcagtgaccaaccaaactgaccataggcaaaagctagaggagtat
+  seq_2           tcacctatcttttgcgacgccaagaatcaaactgaataccggcacaagctcgagtcctat
+  seq_3_long_name tcacctatcttttgtgacactaagaatcaaactgaataccggcgtgagctcgagtcttat
+
+  seq_1           gcacaaagttggccatgactgggaactgtgtaaatgctttatgttgtagtatctcactta
+  seq_2           gctgccagttggccataatcagttagtaccaatgtgattagatt----aagtcttgtctg
+  seq_3_long_name gctgccagctggccataatcagccagtgccaatgtgattagatt----aaatcttgtcga
+
+  seq_1           tag----catattagaaaaaactgtggccacagccgcgataggcaaagataagcaaacca
+  seq_2           tggtcacttgattaagaaaaaacgtgg--gtggtagcgggacacaaggcaaagcaactca
+  seq_3_long_name tgatcacttgattaagaaaaaatgtga--gcggtagtgggatacaaggcaaaacaactcc
+
+  seq_1           --gaggggcgcacgggtaggacatggcaggctccgggcccgaaagggtggagcatcaaat
+  seq_2           aggaggatagcacgggtaggacatggcgagctccggtcccgaaagggcagagcatcagat
+  seq_3_long_name tggagaatattacgggtaggacatggcgggctccggtcccgaaagggcggagcatcagat
+
+  seq_1           catcctacccgaatctcacttatcgtctccacttgtcaaacataagttactgtactactg
+  seq_2           tatcctaccagagtcacacttatcttcaccattagtcaagcacaaactactctattactg
+  seq_3_long_name tatcctaccagagtcacatctgtcttcaccattggtcaagcacaaactactctattactg
+
+  seq_1           gaaactgaccggcctacccctaccagatgagtgtgactttgaccatcttatactcagcag
+  seq_2           gaaattaactgggttaccactccctgatgagtgtgacttcgaccacctcattctcagccg
+  seq_3_long_name gaaattaactgggctaccgctccctgatgagtgtgacttcgaccacctcatcctcagccg
+
+  seq_1           gcaatggaagaagatccttgaatcgtcaaccccagacatcgaaagaatgattaagctagg
+  seq_2           acaatggaaaaaaatacttgaatcggcctcccctgacactgagagaatgataaaacttgg
+  seq_3_long_name acaatggaagaaaatacttgaatcggcctctcctgacactgagagaatgataaaacttgg
+
+  seq_1           tcgctcggtgcatcagacactcagccattcctcaaaactcactgggatcttacatcctag
+  seq_2           aagggcagtgcaccagactctcaaccacaattccaggataaccggagtactccatcccag
+  seq_3_long_name aagggcagtacaccagactctcaaccatgattccaggataaccggagtactacatcccag
+
+  seq_1           gtgtctagaagacctagtaaggctagatatacccgattcaacaaacaagttcagaaagat
+  seq_2           gtgtttagaagaactggctagtattgagattcctgactcaaccaacaagtttcggaagat
+  seq_3_long_name gtgcttagaggaactggctagtattgaggtccctgattcaaccaacaagtttcggaagat
+
+  seq_1           agagaagaagattcagattcacaatacaaggtatggggaactattcaccagactctgctc
+  seq_2           agagaagaaaatccaaattcacaacacaaggtatggagaactgttcacaagactgtgcac
+  seq_3_long_name tgagaagaagatccaaattcacaacacaagatacggagaactgttcacaaggctgtgcac
+
+  seq_1           ttatgttgaaaagaagctgctaggctctgcctggtcacacaagatccgccgttctgagga
+  seq_2           gcatgtagagaagaaattgttgggatcatcttggtctaataacgtcccccggtcagaaga
+  seq_3_long_name gcatgtagagaggaaattgttggggtcctcttggtctagtaatgtcccccggtcagaaga
+
+  seq_1           atttgacagtctccgcacagacccagcattctggttccactcttcatggtccaccgccaa
+  seq_2           gttcaacagcatccgtacggatccggcattctggtttcactcgaaatggtccacaactaa
+  seq_3_long_name gttcaacagcatccgcacagatccggcgttctggtttcactcaaaatggtccacagccaa
+
+  seq_1           attcgcatggcttcatgtgaagcagatccagaggcacttgattgtagccgcgcggacgag
+  seq_2           gtttgcatggctccatctaaaacagattcaaaggcatctgattgtagcagcaagaacaag
+  seq_3_long_name gttcgcatggctccatataaaacagatccaaaggcatctgattgtggcagcgagaacaag
+
+  seq_1           atctgcctccagcaagcttgtgacactgtctcatcattcaggccaagtctttatcactcc
+  seq_2           gtccgcagccaacaaattggtgacactgactcataaggtaggccaagtctttgttactcc
+  seq_3_long_name gtccgcagctaacaaattggtgacgctgacccataaggtaggccaagtctttgttactcc
+
+  seq_1           tgagctagtaatagtaacgcatacgaatgaaaacaagtttacatgtctcacgcaggaact
+  seq_2           tgagcttgtcattgtgacacatacagatgagaacaagttcacgtgtcttacacaagaact
+  seq_3_long_name tgagctagtcattgtgacacatacagatgagaacaagttcacatgtcttacccaggaact
+
+  seq_1           tgtgttgatgtatgcggatatgatggagggaagagacatggtgaatataatctcatcaac
+  seq_2           tgtgttgatgtatgcagatatgatggagggcagagatatggtcaacataatatcatccac
+  seq_3_long_name tgtgttgatgtatgcagatatgatggagggcagagatatggtcaacataatatcatctac
+
+  seq_1           gacggtacacttgcgttgcttggcagagaaaattgatgatatcttgaggctggtggatgc
+  seq_2           ggcggcacatctcaggatcctatcagagaaaattgatgacattctgcggttagtagatgc
+  seq_3_long_name ggcggcacatctcaggagcctatcagagaaaattgatgacattctgcggttagtagatgc
+
+  seq_1           acttgctagggatctgggcaatcaggtttacgacgttgtggcactgatggagggcttcgc
+  seq_2           cctggcaaaagatctgggcaatcaagtctatgatgttgtggcactcatggagggatttgc
+  seq_3_long_name tctggcaaaagatttgggcaatcaagtctacgatgttgtagcacttatggagggatttgc
+
+  seq_1           gtatggtgccgtgcagctcctggaaccgtcagggacctttgctggcgacttcttttcatt
+  seq_2           atacggcgccgtccagctgcttgagccatcaggtacgtttgcaggggatttctttgcatt
+  seq_3_long_name atacggcgctgtccagctgcttgaaccgtcaggtacatttgcgggggatttcttcgcatt
+
+  seq_1           caatctgcaagaattgagggatactttgatttgtttattaccgcagaaaatagccgactc
+  seq_2           caatctgcaagagctcaaagacactttgatcggcctccttcttaaggacatagcagaatc
+  seq_3_long_name caacctgcaagaactaaaagacactttgatcggcctcctccccaaggatatagcagagtc
+
+  seq_1           ggtgacacacgctatcgccaacatattctctggtcttgagcaaaaccaggcagcagagat
+  seq_2           tgtaactcacacaatagccaccatattctctggcttagaacaaaatcaagcggctgagat
+  seq_3_long_name agtgactcacgcgatagcaactgtattctctggcttagaacaaaatcaagcagccgagat
+
+  seq_1           gttatgtctattgaggttatggggtcatccgctattagagtcgcgagccgctgcaaaagc
+  seq_2           gctgtgtctgttgcgtttatggggccacccattacttgagtcccgtgttgcggcgaaagc
+  seq_3_long_name gttgtgtctgttgcgtctgtggggccacccactactcgagtcccgtattgcagcaaaagc
+
+  seq_1           tgttagggcccaaatgtgtgcacccaaaatggtagactttgatatgattctccaggtact
+  seq_2           agtaaggaaccaaatgtgtgcaccaaaaatggtagactttgatatgatcctccaggtatt
+  seq_3_long_name agtaagaagccaaatgtgcgcaccaaaaatggtagactttgatatgatcctccaggtact
+
+  seq_1           gtcatttttcaaagggactatcatcaatggatataggaagaagaacgccggtgtctggcc
+  seq_2           gtcattctttaaaggaacaatcatcaacggataccgaaagaagaatgcaggtgtttggcc
+  seq_3_long_name gtctttctttaaaggaacaatcatcaatgggtacagaaagaagaatgcaggtgtttggcc
+
+  seq_1           gagggttaaagcacataccatatacgggaaggtaattgctcaattgcatgccgactctgc
+  seq_2           acgtgtcaaagtagatacgatatatgggaaggttattgggcagttacatgctgattcagc
+  seq_3_long_name acgtgtcaaggtagacacgatatacgggaaggtcattgggcagctacacgctgattcagc
+
+  seq_1           cgagatatctcatgacatcatgctaagggaatacaagaatctgtctgcgattgaatttga
+  seq_2           ggaaatttcacacgatatcatgttgagagagtacaagagtttatctgcgcttgaattcga
+  seq_3_long_name agagatttcacacgatatcatgttgagagagtataagagtttatctgcgctggaattcga
+
+  seq_1           ggcttgtattgagtatgatcctgtcactaacttgagcatgtttctaaaagacaaggcgat
+  seq_2           gccctgtatagaatacgaccctatcaccaatctgagtatgtttctaaaagataaggcgat
+  seq_3_long_name gccatgtatagagtatgaccctgtcactaatctgagtatgttcctaaaagacaaggcgat
+
+  seq_1           cgcgcatccgagagacaactggctcgcatcctttaggaggaacttgctctcagaggacca
+  seq_2           cgcacacccgaaagacaactggctcgcctcatttaggcgaaaccttctctctgaggacca
+  seq_3_long_name cgcgcacccgaaagacaactggctcgcctcgtttaggcgaaaccttctttctgaggacca
+
+  seq_1           gaagaaaaatgtgcaggacgccacatcaaccaatcgactcctaatagaattcctagaatc
+  seq_2           gaagaaacatgtaaaagaggcaacatctactaaccgtctcttgatagaattcttagagtc
+  seq_3_long_name gaagaagcatgttaaggaggcaacctcgactaaccgcctcttaatagagttcttagagtc
+
+  seq_1           aaatgattttgatccgtataaggagatggaatacttaacaacactcgaatacctgcgaga
+  seq_2           aaatgatttcgatccatataaggagatggaatatctaacgaccctcgagtacctaaggga
+  seq_3_long_name aaatgattttgatccgtataaggagatggaatatctgacgacccttgagtatctaagaga
+
+  seq_1           tgatagcgtggcagtctcttactcattgaaagagaaggaggtgaaagttaacggtcgcat
+  seq_2           tgacaatgtggcagtatcatactcactcaaggagaaggaggtgaaggtcaatggacggat
+  seq_3_long_name tgacaatgtggcagtatcatactcgctcaaagagaaggaagtgaaagttaatggacggat
+
+  seq_1           attcgccaagttgaccaagaagctgaggaactgccaggtcatggcagaagggattctcgc
+  seq_2           ttttgctaagctaacaaagaaattaaggaactgtcaggtgatggcggaagggatcttagc
+  seq_3_long_name tttcgctaagctaacaaagaaattaaggaactgtcaagtgatggcagaagggatcttagc
+
+  seq_1           agatcagattgcacccttcttccaggggaatggggtgatccaagacagcatttctctgac
+  seq_2           tgaccagattgcacctttctttcaggggaatggggtcattcaggatagcatatctttaac
+  seq_3_long_name agaccaaattgcacccttctttcagggaaatggggtcatccaggacagcatatctttaac
+
+  seq_1           caagagcatgctagcaatgagccaactatcatataatagcaacaggaagcgtatcaccga
+  seq_2           caagagtatgctagcgatgagtcaactgtcattcaacagcaataagaaacgtatcactga
+  seq_3_long_name caagagtatgctagcgatgagtcaactgtctttcaacagcaacaagaaacgtataactga
+
+  seq_1           ctgcaaggagagggtctcctctagccggaatcatgacctcaaagggaagcaccgacgaag
+  seq_2           ctgcaaagaaagagtagcctcaacccgcaatcacgatcaaaaaagcaagaatcgtcggag
+  seq_3_long_name ctgcaaagaaagagtatcctcaaaccgtaatcacgatcagaaaagcaagaatcgtcggag
+
+  seq_1           ggttgccacatttatcaccaccgacctacagaagtactgcttgaactggcggtaccagac
+  seq_2           agttgccacttttataacgactgacctgcagaagtactgtcttaattggagatatcagac
+  seq_3_long_name agttgccacttttataacgactgacctgcaaaagtactgtcttaattggagatatcagac
+
+  seq_1           tataaagctattcgctcatgccatcaaccaactaatgggtctaccacatttctttgagtg
+  seq_2           aatcaaactgttcgctcatgccgttaatcagctgatgggcttacctcatttcttcgaatg
+  seq_3_long_name agtcaaattgttcgctcatgccatcaatcagctgatgggcctacctcacttctttgagtg
+
+  seq_1           gatacatctgaggctcatggataccacgatgttcgtgggcgaccccttcaaccctccgag
+  seq_2           gattcatctaaggctaatggatactacgatgtttgtaggtgaccctttcaatcccccaag
+  seq_3_long_name gattcatctaaggctaatggatactacaatgttcgtaggagaccctttcaatcccccaag
+
+  seq_1           tgatccgactgactgtgacctaaccagggtcccgaacgacgacatatacattgtcagtgc
+  seq_2           tgacccaactgactgtgatctctcaagagtttcaaatgacgacatatatattgtcagtgc
+  seq_3_long_name tgacccgactgactgtgatctctcgagagtcccgaatgatgacatatatattgttagtgc
+
+  seq_1           gagagggggtattgaggggctttgccagaagttgtggactatgatctcgattgcagctat
+  seq_2           tagggggggtattgagggattatgtcagaagctatggacaatgatctcaattgctgcaat
+  seq_3_long_name tagagggggtattgagggattatgtcagaagctgtggacgatgatctcgatcgctgcgat
+
+  seq_1           tcagttggcagcagcacgatcacattgtcgcgtggcatgtatggtccaaggggataacca
+  seq_2           ccaacttgctgcagcgagatcacattgccgcgtagcctgtatggtacaaggtgacaatca
+  seq_3_long_name ccaacttgctgcagcaagatcacattgtcgcgtcgcctgcatggtacagggtgacaatca
+
+  seq_1           agtcatagctgtcactagagaggtccgaccggatgactctcctgagtccgttttaactca
+  seq_2           agtaatagctgtaacgagagaagtaagatcagatgactccccggaaatggtgttaacaca
+  seq_3_long_name agtaatagctgtgacgagagaggtaaggtcagatgactcccctgagatggtgttgacaca
+
+  seq_1           gcttcatgaggccagtgacaacttcttcagagaattgatccatgtcaaccatctgatagg
+  seq_2           attgcatcaagcaagtgataatttcttcaaggaattgattcatgttaatcatttgattgg
+  seq_3_long_name actgcatcaagccagtgacaatttcttcaaggaattgattcatgttaatcatttgattgg
+
+  seq_1           gcacaacctaaaagacagagagactatcaggtcagatactttcttcatctatagcaagag
+  seq_2           ccataatttgaaggatcgtgaaacaatcagatcagacacattcttcatatacagcaaacg
+  seq_3_long_name ccataatttgaaggaccgtgaaactatcacgtcagacacattcttcatatacagcaaacg
+
+  seq_1           gatttttaaggatggtgccatactcagtcaggtcctcaagaattcttcaaaattagtact
+  seq_2           aatattcaaggatggagcaatactcagtcaggtccttaaaaattcatctaaattagtgct
+  seq_3_long_name aatatttaaagatggaacaatactcagtcaggtcctcaaaaattcatctaaattagtgct
+
+  seq_1           ggtatcgggagatctgagcgaaaatacagtgatgtcctgtgccaacatctcatcgactgt
+  seq_2           aatatcaggcgaccttagtgaaaacaccgtaatgtcctgtgccaacattgcatctactat
+  seq_3_long_name agtatcagcgacctttagtgaaaataccgtaatgtcctgtgctaacattgcatctactat
+
+  seq_1           ggcacggctatgcgagaatggcctcccaaaggatttctgctactatcttaactacctgat
+  seq_2           cgcacggctgtgtgagaacgggcttccaaaggatttctgttattacttaaactacttaat
+  seq_3_long_name agcacggctatgcgaaaacgggcttcccaaggatttctgttattacttaaactacctaat
+
+  seq_1           gagttgtatccaaacatactttgactccgaattttcaattactagttctactcaatccgg
+  seq_2           gagttgcgtgcagacatactttgattctgagttttccatcactaatagctcgcacctcgg
+  seq_3_long_name gagttgcgtgcagacgtacttcgactctgagttttccatcaccaacagctcacaacctga
+
+  seq_1           ctcaaatcaatcgtggataaatgacataccatttgtccattcgtatgtcctgacaccggc
+  seq_2           ttctaaccagtcttggattgaagacatctcttttgtgcactcatacgtcctaacccctgc
+  seq_3_long_name ttttaaccagtcgtggattgaagacatctctttcgtgcactcatatgtcctgacccctgc
+
+  seq_1           acaactgggcgggttgagcaatctccaatactcgaggctctacaccaggaacatcgggga
+  seq_2           ccagctaggaggactgagcaacctccaatattcaaggctctacacaaggaacatcggtga
+  seq_3_long_name ccagctagggggactgagtaaccttcaatactcaaggctctatacgagaaacatcggtga
+
+  seq_1           cccagggacgacagcatttgccgaggtgaaaaggctcgaagcagtaggacttttaagtcc
+  seq_2           cccgggaactactgcttttgcagagatcaaacgattagaagcagtggggttactaagtcc
+  seq_3_long_name cccgggaactactgcttttgcagaggtcaagcgactagaggcagtggggttactgagtcc
+
+  seq_1           aaacataatgacaaacattctgactagaccaccagggaacggggactgggccagcttatg
+  seq_2           tagtattatgactaacatcttgactaggccgcctggaaatggagactgggccagtctgtg
+  seq_3_long_name cagcatcatgactaacatcttaactaggccgcccggaaatggagactgggccagtctgtg
+
+  seq_1           taatgatccttattcgttcaattttgagacagtggccagcccgaatatcgtcctcaagaa
+  seq_2           taacgacccttactctttcaattttgagactgtcgcgagtccaaacattgtccttaagaa
+  seq_3_long_name caacgacccatactctttcaattttgagactgttgcaagtccaaatattgtccttaagaa
+
+  seq_1           acatacacaacgcgtattatttgagacgtgctcaaacccactactatctggagtccacac
+  seq_2           acatacacaaagagtcctatttgaatcttgctcaaatcccttattatctggagtgcatac
+  seq_3_long_name acatacacaaagagtcttatttgaaacctgttcaaatcccctattatctggagtgcatac
+
+  seq_1           ggaagacaatgaggcagaggagaaagcgttggcagagtatttactgaatcaagaggtgat
+  seq_2           agaggataatgaggcagaagagaaggcgttggctgaatttttactcaatcaagaaataat
+  seq_3_long_name agaagataatgaggcagaggagaaggcattggctgaatttttactcaatcaagaagtaat
+
+  seq_1           ccacccgagagtggcccatgcaattatggaagcaagctcagtcggaaggagaaagcagat
+  seq_2           tcatccacgtgttgcgcatgctatcatggaagcaagctctgtaggtaggaggaagcagat
+  seq_3_long_name tcacccacgagtcgcgcatgctatcatggaagcaagctctgtaggtaggaggaagcagat
+
+  seq_1           tcaggggctagtggatacaaccaatacagtcataaaaattgctttatccagaaaaccact
+  seq_2           tcaagggcttgttgacacaacaaacactgtaatcaagattgcattgactaggaggccact
+  seq_3_long_name tcagggacttgttgacacaacaaataccgtaatcaagattgcattgactagaaggccact
+
+  seq_1           ggggatcaagaggctcacaaggataataaattactctagcatgcatgccatgcttttccg
+  seq_2           tggcatcaagaggctgatgcggatagttaactattcgagcatgcatgcaatgctgtttag
+  seq_3_long_name tggcatcaaaaggctgatgcggatagttaactactcgagcatgcatgcaatgctgtttag
+
+  seq_1           agatgatgtcttcttgtccaatagggccaatcatccgctggtttcatcagatatgtgctc
+  seq_2           agacgatgttttctcatctaacaggtctaaccaccccttagtctcctctgatatgtgttc
+  seq_3_long_name agacgatgtcttctcatccaacaggtccaaccaccctttagtctcttctagtatgtgttc
+
+  seq_1           tttaacgttggcagactacgcgaggaaccgcagttggtcacccttgaccgggggaagaaa
+  seq_2           tctgacgctagcagactatgcacggaatagaagctggtcacctttgacagggggtagaaa
+  seq_3_long_name tctgacgctggcagactatgcacggaatagaagctggtcacctttgacagggggtaggaa
+
+  seq_1           gattctaggggtctccaatcctgacacgattgagctggtggaaggagaaatactaagtat
+  seq_2           gatactgggtgtatctaatcccgatactatagaacttgtagagggtgagatccttagcgt
+  seq_3_long_name gatcctaggtgtatctaatcctgataccatagaactcgtggagggtgagatccttagtgt
+
+  seq_1           cagtgggggctgtacaaggtgtgatagcggagacgaacaattcacgtggttccacctccc
+  seq_2           aagcggaggatgcacaaggtgtgacagcggagatgaacaattcacttggttccatctccc
+  seq_3_long_name cagtggagggtgcacaagatgtgacagcggggatgagcagttcacttggttccatcttcc
+
+  seq_1           aagcaatattgaattgacggatgacacgagcaagaatcctcccatgagggtcccttatct
+  seq_2           gagcaatatagaactgaccgatgacaccagcaagaatcctccgatgagagtgccatacct
+  seq_3_long_name gagtaatatagaactgaccgatgacaccagcaagaaccctccaatgagagtgccgtatct
+
+  seq_1           aggctccaaaactcaggaaaggcgagctgcatctcttgcaaagattgcacatatgtcacc
+  seq_2           cgggtcaaagactcaagagaggagagccgcctcgcttgcgaaaatagctcatatgtcacc
+  seq_3_long_name agggtcaaaaactcaagagaggagagccgcctcgcttgcgaaaatagctcatatgtcacc
+
+  seq_1           gcatgttaaagcagcacttagagcctcctcggtactaatctgggcatatggtgacaatga
+  seq_2           acatgtgaaagctgctctaagggcatcatccgtgttgatctgggcttatggagacaacga
+  seq_3_long_name acatgtaaaagctgctctaagggcatcatctgtgttgatctgggcttatggagacaacga
+
+  seq_1           catcaattggaccgctgcattgaagctggcacgatcaagatgcaatatttcatcagagta
+  seq_2           agtaaactggactgctgctcttaagattgcaagatctcggtgcaatataaactcagagta
+  seq_3_long_name ggtaaattggactgctgctcttaaaattgccagatcccggtgcaatataaactcagagta
+
+  seq_1           cctcagactattgtcgcctttaccaactgcagggaatctccaacaccgactcgatgatgg
+  seq_2           ccttcggctattgtcccccttacctacagctgggaatctccaacacagactggatgacgg
+  seq_3_long_name tcttcgattattgtcacccttacctacagctgggaatctccaacatagactggatgacgg
+
+  seq_1           catcacccagatgacattcacccctgcctctctatatcgagtgtctccatatgtccatat
+  seq_2           cataactcagatgacattcacccctgcatctctctacagagtgtcaccttatattcacat
+  seq_3_long_name cataacccagatgacattcaccccggcatctctctacagggtgtcaccttacattcacat
+
+  seq_1           atcaaacgactcacagaggctgttcactgaggagggtgttaaggaagggaacgtggtata
+  seq_2           atccaatgattctcaaaggttattcacggaagaaggagtcaaagaagggaatgtggttta
+  seq_3_long_name atccaacgattctcaaaggctattcactgaggaaggagtcaaggaggggaacgtggttta
+
+  seq_1           tcagcagatcatgctcctggggctctctctgatagagtcattattccctatgactgtcac
+  seq_2           tccgcaaatcatgctcttgggtttatctctaattgagtcactcttcccgatgacgacaac
+  seq_3_long_name tcagcaaatcatgctcttgggtttatctctaatcgagtcactcttcccaatgacgacaac
+
+  seq_1           aaaaacatatgatgaaattactctccacctccatagcaagttcagttgttgtatccgtga
+  seq_2           caggacatatgatgagattacattgcacctccacagtaaatttagctgctgtatcaggga
+  seq_3_long_name caggacatatgatgagatcacattacacctccacagtaagtttagctgctgtatcagaga
+
+  seq_1           ggcaccagtggctgtcccatttgagctaacaggtatagcaccagatctcagagttgtagc
+  seq_2           agcacctgttgcagtccctttcgagttattcgggatggcaccagaattaaggatagtgac
+  seq_3_long_name agcacctgttgcagttcctttcgagctactcgggatggcaccagaactaaggacagtgac
+
+  seq_1           atctaacaaatttatgtatgatccaaacccagtagcggaaggggacttcgctaggttaga
+  seq_2           ctcaaataagtttatgtatgatcctagtcctgtagcggagggtgactttgcgagacttga
+  seq_3_long_name ctcaaataagtttatgtatgatcctagtcctgtatcggagggtgactttgcgagacttga
+
+  seq_1           tcttgcaatattcaagagttatgaattgaatttagagtcatattccacgatagagttgat
+  seq_2           cttagctatctttaagagttatgagctcaatctagaatcatatcccacaatagagctaat
+  seq_3_long_name cttagctatctttaagagttatgagcttaatttagagtcataccccacaatagagctaat
+
+  seq_1           gaatattctttccatctctagcgggaagttgattggtcaatcagtggtatcttacgatga
+  seq_2           gaacattctttcaatatccagcggaaaattaatcggccagtctgtggtttcttatgatga
+  seq_3_long_name gaacattctttcaatatccagtgggaagctgattggccagtctgtggtttcctatgatga
+
+  seq_1           agaaacgtccattaaaaatgatgcaataatagtgtatgacaacacccgcaactggataag
+  seq_2           agatacctctataaagaatgacgccataatagtgtatgacaacacccggaattggatcag
+  seq_3_long_name agatacctccataaagaatgacgccataatagtgtatgacaacacccggaattggatcag
+
+  seq_1           cgaagctcaaaattcagatgtcgtccggctattcgagtacgcagcccttgaggtcctgct
+  seq_2           cgaagctcagaattcagatgtggtccgtctatttgagtatgcggcacttgaagtgcttct
+  seq_3_long_name cgaagcccagaattcagatgtggtccgcttatttgagtatgcagcacttgaagtgctcct
+
+  seq_1           tgattgctcttaccagctatactatcttcgagtgcgcggtttggataacgttgtcttata
+  seq_2           cgactgttcttatcagctctactatctgagagtaaggggcctaaacaatatcgtgttgta
+  seq_3_long_name cgactgttcttaccagctttactatctgagagtaagaggtctagacaatatcgtgttata
+
+  seq_1           catgagcgatctttataagaatatgcctggcatcctactatctaacattgctgctaccat
+  seq_2           tatgagtgacttatataagaatatgccaggaattctactttccaacattgcagccacaat
+  seq_3_long_name tatgagtgatctatacaagaatatgccaggaattctactttccaacattgcagctacaat
+
+  seq_1           atcccacccgatcatacattcacgtttacacaccgtagggctgatcagccatgatggctc
+  seq_2           atctcatcccatcattcattcaagattacatgcagtaggccttgttaatcatgacgggtc
+  seq_3_long_name atctcatcccatcattcattcaagattacatgcagtaggtctagtcaatcatgacgggtc
+
+  seq_1           acaccaacttgcagatacggacttcattgaactatcagccaaattgctcgtatcctgcac
+  seq_2           acaccaacttgcagacacagatttcatcgaaatgtctgcaaaactgttagtttcctgcac
+  seq_3_long_name acaccaacttgcagacacagatttcatagaaatgtctgcgaagctgttagtctcttgcac
+
+  seq_1           gaggagagtagtctcagggctgtacgcagggaacaagtatgatttgcttttcccttctgt
+  seq_2           ccgacgcgtggtctcaagtttatatgcagggaataagtatgatctgctgtttccatctgt
+  seq_3_long_name tcggcgcgtggtctcaggcttatacgcagggaataagtatgatctgctgttcccatccgt
+
+  seq_1           cctagatgacaacctgaatgagaagatgctacagctgatctctcgactttgttgcctgta
+  seq_2           cttagatgacaacctgagtgaaaagatgcttcagctgatatctcggttatgctgcctgta
+  seq_3_long_name cctagatgataacctgagtgagaagatgctccagctgatatcccggctatgctgcctgta
+
+  seq_1           tacggtgctgtttgcgaccacgagagagattccgaaaataagaggattgcccgcagaaga
+  seq_2           tacggtgctctttgctacaacaagagagatcccgaaaataagaggcttatctgcagaaga
+  seq_3_long_name cacggtgctctttgctacaacaagagagatcccgaaaataagaggcttatctgcggaaga
+
+  seq_1           gaagtgtgctatgttaacagaataccttctatctgatgcagtgaggccgctcctcagtcc
+  seq_2           gaagtgttcagtacttactgagtacctgctgtcagatgctgtgaaaccactacttagttc
+  seq_3_long_name gaagtgttcagtacttactgagtacctactgtcagatgctgtgaaaccactacttagttc
+
+  seq_1           agagcaggtagattcaatcacttctccaaacattgtaacattcccagctaacctctatta
+  seq_2           tgaacaagtgagctctatcatgtctcctaacatagttacattcccagctaatctatatta
+  seq_3_long_name tgagcaagtgagctctatcatgtcccctaacatagtcacattcccagctaatctatacta
+
+  seq_1           tatgtccaggaaaagcctcaatttaatcagagaaagagaggacagggactcaattctagc
+  seq_2           catgtctcggaagagccttaatttgattagggaaagagaggacagggacactatcttggc
+  seq_3_long_name catgtctcggaagagccttaatttgatcagagaaagagaagacagggacactatcttggc
+
+  seq_1           cttgatgttcccacaagaaccgttgcttgaattcccaccagtccaggacatcggtgcacg
+  seq_2           attgttgttcccccaagagccactacttgagttccccttaatacaagatattggcgctcg
+  seq_3_long_name actattgttcccccaagagccattactcgagttccctttagtacaagatattggcgctcg
+
+  seq_1           tgtcaaggaccaattgacaaggaagcctgctgcattcctgcacgagctagacttaagcgc
+  seq_2           agtgaaagatccattcacccgacaacctgcggcgtttttacaagaattagatttgagcgc
+  seq_3_long_name agtgaaagatccatttacccgacaacctgcggcgtttttacaggagttagatttgagcgc
+
+  seq_1           tccagcacgatacgatgcatacacgttagagcaagcccgttctgactgtgcacttgctga
+  seq_2           tccagcaaggtatgacgcatttacacttagtcaggttcattctgaatacacatcatcaaa
+  seq_3_long_name tccagcaaggtatgacgcatttacacttagtcaggttcatgctgaacacatatcaccaag
+
+  seq_1           catgggggaggatcatttagttcgatacctgtttaggggagtaggaacagcatcttcatc
+  seq_2           tctggagggagactacttagtacgatacctgttcagaggaatagggaccgcgtcctcctc
+  seq_3_long_name tccagaagaagactacttagtacgatatctgttcagaggaataggaaccgcgtcctcctc
+
+  seq_1           ttggtacaaagcatctcatctgttatctgtcccggaaatcaggtgtgccaggcacggcaa
+  seq_2           ttggtataaggcatctcaccttctttctgtacctgaggtcagatgtgcaaggcacggaaa
+  seq_3_long_name ttggtataaggcatcccaccttctttctgtacccgaggtcaggtgtgcaaggcacggaaa
+
+  seq_1           ttctctgtatctcgctgaaggaagcggggctatcatgagcttattggagttgcatatacc
+  seq_2           ttccttatacttggcagaaggaagcggagccattatgagtcttctcgaactgcatgtgcc
+  seq_3_long_name ttccttatacttggcagagggaagcggagctatcatgagtcttcttgaactgcatgtgcc
+
+  seq_1           gcacgagacgatatattacaatacactcttctccaatgaaatgaacccgccacagcggca
+  seq_2           gcatgagactatctattacaatacactcttctcaaacgaaatgaaccccccacagcgaca
+  seq_3_long_name gcatgaaactatctattataatacgctcttctcaaatgagatgaaccctccacagcgaca
+
+  seq_1           cttcggtcctacgccgacacagttcctcaactccgtggtgtatagaaacttacaagccga
+  seq_2           ttttggaccgactccaacacagtttctgaattcagttgtttataggaatctacaagcgga
+  seq_3_long_name ttttggaccgaccccaacacagttcctgaactcggttgtttataggaatctacaagcaga
+
+  seq_1           ggtcccgtgcaaagatggattcgtccaggagttccgacccttatggagagagaacacaga
+  seq_2           ggtaccatgtaaggatggatttgtccaggagttccgtccattatggagagagaatacaga
+  seq_3_long_name ggtaccatgcaaggatggattcgttcaggagttccgtccattatggagagagaatacaga
+
+  seq_1           ggagagtgatttgacatcagataaagctgtggggtacattacatccgtagtaccttaccg
+  seq_2           agaaagcgatctgacctcagataaagcagtgggttacatcacatctgcagtgccctaccg
+  seq_3_long_name agaaagcgacctgacatcagataaagcagtagggtatatcacatccgcggtgccctaccg
+
+  seq_1           atcagtgtctctgcttcactgcgacattgaaatcccgccaggatctaatcagagcttatt
+  seq_2           gtctgtatcattgctgcactgtgacattgagattcctccaggatccaatcaaagcttact
+  seq_3_long_name atctgtatcattgctgcactgtgacattgagattcctccaggatccaaccaaagcttact
+
+  seq_1           agatcaactggccaccaatttatcactaatagcgatgcactcagtgagagagggaggtgt
+  seq_2           agatcaactggctaccaatctgtctctgattgccatgcattctgtaagggagggcggggt
+  seq_3_long_name agatcaactggctaccaatctatctctgattgccatgcattctgtaagggaaggcggggt
+
+  seq_1           tgtaattgtcaaaatactgtactccatgggctactatttccacttgcttgtgaatctttt
+  seq_2           cgtgatcatcaaagtgttgtatgcgatgggatattacttccatctactcatgaacttgtt
+  seq_3_long_name tgtgatcatcaaagtgttgtatgcaatgggatattacttccatctactcatgaatttatt
+
+  seq_1           caccccttgctcagttaaagggtacgttctatccaacgggtatgcctgtaggggagatat
+  seq_2           cactccatgttctacaaaaggatatattctctctaatggctatgcatgtagaggggatat
+  seq_3_long_name caccccgtgttccacaaaaggatatattctttctaatggctatgcatgtagaggagatat
+
+  seq_1           ggaatgctatttagtattcgtaatggggtatttgggcgggcccacctttgttaatgaagt
+  seq_2           ggagtgctacttggtatttgtcatgggttatctaggtgggcctacatttgtacatgaggt
+  seq_3_long_name ggagtgttacctggtatttgtcatgggttatctaggtgggcctacatttgtacatgaggt
+
+  seq_1           agtaaggatggcgaagacattgatacagagacacgggacgctactcgccaaatcagatga
+  seq_2           agtgaggatggcaaaaactctagtgcagcggcacggtacacttttgtccaaatcagatga
+  seq_3_long_name agtgaggatggcaaaaactttagtacagcgacacggcacacttttgtctaaatcagatga
+
+  seq_1           gatggcattgatggcgttatttacctcgcagaagcaaagagttaacgacatcctatcaag
+  seq_2           gatcacactgactagattatttacctcacagcagcagcgtgtaacagacatcttatccag
+  seq_3_long_name gatcacactgactaggttatttaccgcacagcggcagcgtgttacagatatcctatctag
+
+  seq_1           ccctctcccgaggttggcaaagctactaagacgcaatattgacaccgcattgattgaggc
+  seq_2           tccgttaccgagactaataaagttcttgagaaagaatatagatactgcgctaattgaagc
+  seq_3_long_name ccctttaccgagactaatgaagttcttgagaaaaaatatcgatactgcgctgatagaagc
+
+  seq_1           cgggggacagcctgtgaggccgttctgtgcagaaagcttagtaaataccctctcagacat
+  seq_2           cgggggacagcccgtccgtccgttctgtgcagagagcttggtgagcacactaacggacat
+  seq_3_long_name cgggggacagcctgtccgtccattctgtgcagagagcttggtgagtacattggcggacat
+
+  seq_1           tactcaaaccacgcaggtgattgccagccacattgatacagtcataagatcagtcatata
+  seq_2           aactcaaatgacccagatcatcgccagtcacattgacacggttattcgatctgtgatcta
+  seq_3_long_name aactcagatgacccagatcattgctagtcacattgacacagtcattagatctgtgatcta
+
+  seq_1           tatggaagcagagggtgatctggccgacactgtcttcctattcacaccatacaatttgtc
+  seq_2           catggaggctgaaggtgatctcgctgacacagtgttcttatttaccccttacaacctctc
+  seq_3_long_name catggaggctgagggtgatctcgctgatacagtattcttatttaccccttacaatctctc
+
+  seq_1           caccgatgggaagaagagaacatcgctaaagcagtgcacaaggcaagtcctcgaagtaac
+  seq_2           tacagacggtaagaagaggacatcacttaaacagtgcacaaggcagatcttagaggtcac
+  seq_3_long_name tacagacggtaaaaagagaacatcacttaaacagtgcacacggcagatcttagaggtcac
+
+  seq_1           catcctcggtcttggggcagaggatctcaatcgggtgggagacatcataagcttgatact
+  seq_2           aatattgggtcttagagttgagaatctcaataaagtaggtgatgtagtcggtctagtgct
+  seq_3_long_name aatactgggtcttagagtagagaacctcaataaagtaggtgatgtaatcagcctagtgct
+
+  seq_1           cagagggacaatatctctagaagaccttataccgctacgcacatatctcaagaggagtac
+  seq_2           taaaggtatgatttctctggaggacctgatccctctaagaacatacttgaagcgtagtac
+  seq_3_long_name taaaggtatgatttccctagaggatctcatcccactaagaacatacttgaaacgtagtac
+
+  seq_1           atgccctaaatatctgaaatctgtactaggcttgacaaaactcagggagatgttctccga
+  seq_2           ctgccctaagtatttgaagtctgttctaggtattactaaactcaaggaaatgtttacaga
+  seq_3_long_name ttgccctaagtacttgaaggctgtcctaggtatcactaaactcaaagaaatgtttacaga
+
+  seq_1           cggctccatgctttatttaacacgagcacaacaaaaattttacatgaagactgtagggaa
+  seq_2           cacctctttattatacttgactcgtgctcaacaaaagttctacatgaaaactataggcaa
+  seq_3_long_name cacatctttattatacttgactcgcgctcagcaaaaattctacatgaaaactataggcaa
+
+  seq_1           tgctgtcaaaggatattacaacagtagcaaaaattgagaagactgtaactgttgataata
+  seq_2           cgcaatcaagggatactacaata------------------actgtgactcttaaaggta
+  seq_3_long_name tgcagttaaaggatattacagta------------------actgtgactcttaaagaca
+
+  seq_1           gtggtaaat----------------------gctgttgatttacagacttaataatcatt
+  seq_2           atcacatattaatgggtttttcttctaattcactgtgctcttgttgaattgataa----t
+  seq_3_long_name atcacatatcaataaatcccctttctagccgattatacccctgttgatttaacta----t
+
+  seq_1           gcatcattagaaaaaacttaaatctgtcaaacttaggcctcgaatccgcaaccgagtcat
+  seq_2           attatattagaaaaaagttgcgctccgatcctttaggcctcgtattcgaattcaaataat
+  seq_3_long_name attatattagaaaaaagttgtactctgacccctcaggactcgtattcgaattcaaataaa
+
+  seq_1           agtgtcaagaataatacaaaacgtaacagtttgtca-cattattctgatattcaccaaat
+  seq_2           tgtcttag-aaaaaaaatgcgcataattgttcttgaatgtagccctgtcattcaccaaat
+  seq_3_long_name tgtcttag-aaaaaagttgcgcataattgttcttgagtgtagtcctgtcattcaccaaat
+
+  seq_1           ctttgtttggt------
+  seq_2           ctttgtttggt------
+  seq_3_long_name ctttgtttggt------
+  ;
+end;

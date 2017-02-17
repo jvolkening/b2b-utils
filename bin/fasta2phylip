@@ -50,8 +50,8 @@ while (my $obj = $s->next_seq) {
             warn "clipping ID $id\n";
             $id = substr $id, 0, 9;
         }
-        $id = sprintf '%-9s', $id;
         $id =~ s/\W/_/g;
+        $id = sprintf '%-9s', $id;
         die "Errror: duplicate seq names ($id)\n" if (defined $unique{$id});
         $unique{$id} = 1;
     }

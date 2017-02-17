@@ -1,9 +1,9 @@
-#!/usr/bin/perl
-
-use v5.10.1;
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+
 use Getopt::Long;
 use Pod::Usage;
 use FindBin;
@@ -279,7 +279,7 @@ found that did not conform to this. Please check your GFF3 file.
 =head1 DEPENDENCIES
 
 A recent version of perl
-B2B::Seq::Fetch
+BioX::Seq::Fetch
 
 =head1 BUGS AND LIMITATIONS
 

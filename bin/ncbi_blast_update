@@ -1,9 +1,8 @@
-#!/usr/bin/perl
-
-use 5.010;
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
 
 use Archive::Tar;
 use DBI;
@@ -551,7 +550,7 @@ Jeremy Volkening (jeremy@base2bio.com)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014 Jeremy Volkening
+Copyright 2014-2017 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

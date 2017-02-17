@@ -1,47 +1,33 @@
-#!/usr/bin/perl
-
-# fasta2phylip v0.1
-# c2014 Jeremy Volkening @ BASE2BIO
-# last updated 2014-03-02
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+
 use BioX::Seq::Stream;
 use BioX::Seq::Utils qw/is_nucleic/;
 use Getopt::Long;
 use Pod::Usage;
 
 my $line_len     = 60;
-my $strict_names = 0;
 my $interleaved  = 0;
 my $input;
 my $output;
-my $print_version = 0;
 my $type;
 
-use constant NAME     => 'fasta2nexus';
-use constant VERSION  => '0.1';
+my $PROGRAM = 'fasta2nexus';
+my $VERSION = 0.001;
 
 my $options_okay = GetOptions(
 
-    'line_length=i'    => \$line_len,
-    'strict_names'     => \$strict_names,
-    'interleaved'      => \$interleaved,
-    'type=s'           => \$type,
-    'in=s'             => \$input,
-    'out=s'            => \$output,
-    'man'              => sub{ pod2usage(-verbose => 2); },
-    'help'             => sub{ pod2usage(-verbose => 2); },
-    'version'          => \$print_version,
+    'line_length=i' => \$line_len,
+    'interleaved'   => \$interleaved,
+    'type=s'        => \$type,
+    'in=s'          => \$input,
+    'out=s'         => \$output,
+    'help'          => sub{ pod2usage(-verbose => 2); },
+    'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
 );
-
-# Handle version requests
-if ($print_version) {
-    print 'This is ' , NAME, ' v' , VERSION, "\n";
-    print "Copyright 2014 Jeremy Volkening (jeremy\@base2bio.com)\n";
-    print "Licensed under the GNU GPLv3\n";
-    exit;
-}
 
 print_usage('Syntax error: unknown option') if !$options_okay;
 print_usage("Error: input file can\'t be read")
@@ -115,3 +101,82 @@ sub print_usage {
     );
     exit;
 }
+
+__END__
+
+=head1 NAME
+
+fasta2nexus - convert FASTA multiple alignments to NEXUS format
+
+=head1 SYNOPSIS
+
+fasta2nexus --in <input.fa> [options]
+
+=head1 DESCRIPTION
+
+Converts a multiple alignment from padded FASTA format to NEXUS format
+
+=head1 PREREQUISITES
+
+Requires the following non-core Perl libraries:
+
+=over 1
+
+=item * BioX::Seq
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--in> I<filename>
+
+Path to input FASTA alignment (required)
+
+=item B<--out> I<filename>
+
+Path to write output file to (default: STDOUT)
+
+=item B<--line_length> I<integer>
+
+Line length to use for sequence wrapping
+
+=item B<--interleaved>
+
+Write sequences as interleaved (default: false)
+
+=item B<--type>
+
+Specify sequence type (either 'dna' or 'protein'). If not given, will be
+guessed from the file contents.
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jdv@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2014-17 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

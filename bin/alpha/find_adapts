@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use B2B::Seq::Fastx;
+use BioX::Seq::Stream;
 use Getopt::Long;
 use List::MoreUtils qw/first_index/;
 
@@ -73,7 +73,7 @@ for my  $seq (keys %adapts) {
 
 my %votes;
 my $read_count = 0;
-my $parser = B2B::Seq::Fastx->new;
+my $parser = BioX::Seq::Stream->new;
 
 my $coeff = ($max_samples - $min_samples)/($min_frac-0.2);
 

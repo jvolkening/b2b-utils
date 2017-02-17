@@ -1,16 +1,20 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+
 use List::Util qw/max/;
 use Getopt::Long;
 use Pod::Usage;
 
-my $NAME    = 'decode_sam_flag';
+my $PROGRAM = 'decode_sam_flag';
 my $VERSION = 0.002;
 
-# print manpage upon request
-GetOptions( 'help' => sub{ pod2usage(-verbose => 2); } );
+GetOptions( 
+    'help'          => sub{ pod2usage(-verbose => 2); },
+    'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+);
 
 
 my $decimal = $ARGV[0];
@@ -75,11 +79,11 @@ None
 
 =head1 CAVEATS AND BUGS
 
-As yet undiscovered. Please reports bugs by email to the author.
+Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening <jdv *at* base2bio.com>
+Jeremy Volkening <jdv@base2bio.com>
 
 =head1 COPYRIGHT AND LICENSE
 

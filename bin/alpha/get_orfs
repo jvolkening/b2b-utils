@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # get_orfs v0.2
 # c2014 Jeremy Volkening @ BASE2BIO
@@ -10,7 +10,7 @@ use Fatal qw/open close/;
 use FindBin;
 use Getopt::Long;
 use Pod::Usage;
-use B2B::Seq::Fastx;
+use BioX::Seq::Stream;
 
 # Command line option parsing
 my $in_file;
@@ -30,9 +30,8 @@ my $res = GetOptions(
     'help'      => sub{ pod2usage(-verbose => 2); },
 );
 
-# default input is STDIN
-my $stream = defined $in_file ? B2B::Seq::Fastx->new( $in_file )
-                              : B2B::Seq::Fastx->new();
+# default input is STDIN if $in_file is undefined
+my $stream = BioX::Seq::Stream( $in_file );
 
 # default output is STDOUT
 my $fh_out;
@@ -56,7 +55,7 @@ while (my $seq = $stream->next_seq) {
         my $regex = $strict ? "(M[^\\*]{$tail_size,})"
                             :  "([^\\*]{$tail_size,})";
         while ($frame =~ /$regex/g) { 
-            my $orf = B2B::Seq->new( $1 );
+            my $orf = BioX::Seq->new( $1 );
             my $start = $-[0] + 1;
             my $end = $+[0];
             my $len = $end - $start + 1;

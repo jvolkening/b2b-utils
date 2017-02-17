@@ -1,16 +1,14 @@
-#!/usr/bin/perl
-
-# plot_coverage v0.3
-# c2014 Jeremy Volkening @ BASE2BIO
-# last updated 2014-04-06
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+
 use Fatal qw/open close/;
 use Getopt::Long;
 use List::Util qw/min max sum/;
 use Pod::Usage;
-use B2B::Seq::Fastx;
+use BioX::Seq::Stream;
 use SVG;
 
 # Command line option parsing
@@ -101,7 +99,7 @@ if (defined $feat_file) {
 }
 
 # read seq
-my $parser = B2B::Seq::Fastx->new($fn_fa);
+my $parser = BioX::Seq::Stream->new($fn_fa);
 my $seq = $parser->next_seq->seq;
 
 

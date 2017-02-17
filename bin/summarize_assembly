@@ -1,20 +1,22 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+
 use Getopt::Long;
 use Pod::Usage;
 use List::Util qw/sum max min/;
 use List::MoreUtils qw/uniq/;
 use BioX::Seq::Stream;
 
+my $PROGRAM = 'summarize_assembly';
+my $VERSION = 0.002;
+
 my $fn_fasta;
 my @cutoffs;
 my $strip = 0;
 my $split = 0;
-
-use constant NAME    => 'summarize_assembly';
-use constant VERSION => '0.002';
 
 # Collect command-line parameters
 my $err_msg = 'Syntax error: please check your syntax';
@@ -24,7 +26,7 @@ GetOptions(
     'strip_N'      => \$strip,
     'split_N'      => \$split,
     'help'         => sub{ pod2usage( -verbose => 2 ) },
-    'version'      => sub{ print 'This is ',NAME,' v',VERSION,"\n" and exit },
+    'version'      => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
 ) or pod2usage( -msg => $err_msg, -verbose => 1 );
 
 # Set default cutoffs if necessary and sort
@@ -179,7 +181,7 @@ Print version information
 
 =head1 CAVEATS AND BUGS
 
-Currently unknown. Please submit bug reports to the author.
+Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 

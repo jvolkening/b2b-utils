@@ -6,38 +6,133 @@ use warnings;
 use Getopt::Long;
 use File::Spec;
 use File::Temp qw/tempfile/;
+use File::Which qw/which/;
+
+my $PROGRAM = 'blast2diamond';
+my $VERSION = 0.003;
 
 my $db;
 my $pfx_out;
+my %BINS;
+
+for (qw/blastdbcmd diamond/) {
+    $BINS{$_} = which $_ // die "$_ is required to run this program. Install"
+        . " or check your \$PATH";
+}
 
 GetOptions(
-    'db=s'  => \$db,
-    'out=s' => \$pfx_out,
-) or die "Error parsing command-line parameters: $@\n";
+
+    'db=s'    => \$db,
+    'out=s'   => \$pfx_out,
+    'help'    => sub{ pod2usage(-verbose => 2); },
+    'version' => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+
+) or pod2usage( -verbose => 1);
 
 die "database not defined" if (! defined $db);
 die "output prefix not defined" if (! defined $pfx_out);
 
 my $tmp = File::Temp->new(UNLINK => 1, SUFFIX => '.dat');
 
-print "Converting BLAST db to FASTA...\n";
-my $ret = system( 'blastdbcmd',
+my $ret = system(
+    $BINS{blastdbcmd},
     '-outfmt' => '"%f"',
     '-out'    => $tmp,
     '-entry'  => 'all',
     '-db'     => $db,
 );
-die "BLASTDBCMD error: $!\n" if ($ret);
+die "blastdbcmd error: $!\n" if ($ret);
 
-print "Converting FASTA to DIAMOND db...\n";
 open my $stdout_old, '>&', \*STDOUT;
 open STDOUT, '>>', File::Spec->devnull();
 
-$ret = system( 'diamond', 'makedb',
+$ret = system(
+    $BINS{diamond},
+    'makedb',
     '--in' => $tmp,
     '-d'   => $pfx_out,
 );
+
 open STDOUT, '>&', $stdout_old;
 die "DIAMOND error: $!\n" if ($ret);
 
 exit;
+
+
+__END__
+
+=head1 NAME
+
+blast2diamond - convert BLAST+ formatted databases to DIAMOND databases
+
+=head1 SYNOPSIS
+
+blast2diamond --db <blast_db> --out <output_prefix>
+
+=head1 DESCRIPTION
+
+Converts a sequence database in BLAST+ format to a DIAMOND database.
+
+=head1 PREREQUISITES
+
+Requires the following non-core Perl libraries:
+
+=over 1
+
+=item * File::Which
+
+=back
+
+as well as the following binaries:
+
+=over 1
+
+=item * blastdbcmd (from BLAST+)
+
+=item * diamond
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--db> I<prefix>
+
+Path to BLAST+ database prefix (or just prefix if path is defined as
+environment variable). This is the same as you would provide for a blast
+search.
+
+=item B<--out> I<prefix>
+
+Path (up to db prefix) of the location to write the DIAMOND database to.
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jdv@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2014-17 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

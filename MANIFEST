@@ -27,6 +27,7 @@ bin/sync_reads
 Build.PL
 LICENSE
 MANIFEST			This list of files
+README.md
 t/bam2consensus.t
 t/boot2frac.t
 t/fasta2nexus.t
@@ -41,8 +42,10 @@ t/test_data/b2c.mod.fa.fai
 t/test_data/b2c.out.bg
 t/test_data/b2c.out.fa
 t/test_data/b2c.out.tsv
+t/test_data/p.sam
 t/test_data/rm_chim.in.fq
 t/test_data/rm_chim.out.fq
+t/test_data/s.sam
 t/test_data/summary
 t/test_data/test.aln.fa
 t/test_data/test.aln.interleaved.nex

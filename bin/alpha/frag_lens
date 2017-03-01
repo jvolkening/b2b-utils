@@ -7,7 +7,9 @@ use Cwd qw/abs_path/;
 use List::Util qw/sum/;
 use Getopt::Long;
 use File::Temp qw/tempdir tempfile/;
+use Statistics::KernelEstimation;
 
+my $is_paired  = 0x0001;
 my @good_codes = ( 0x0002, 0x0040 );
 my @bad_codes  = ( 0x0004, 0x0100, 0x0800 );
 
@@ -17,6 +19,7 @@ my $reverse;
 my $sam;
 my $threads = 1;
 my $max_align = 10000;
+my $fn_svg;
 
 GetOptions(
     'forward=s' => \$forward,
@@ -25,6 +28,7 @@ GetOptions(
     'ref=s'     => \$fasta,
     'threads=i' => \$threads,
     'max_aln=i' => \$max_align,
+    'svg=s'     => \$fn_svg,
 );
 
 my $fh_sam;
@@ -48,17 +52,84 @@ else {
     open $fh_sam, "bwa mem -t $threads $tmp_dir/tmp.fasta $forward $reverse |";
 }
 
+my @lens;
 my $c = 0;
+
+LINE:
 while (my $line = <$fh_sam>) {
-    next if ($line =~ /^\@/);
+    next LINE if ($line =~ /^\@/);
     chomp $line;
     my @parts = split "\t", $line;
     my $flags = $parts[1];
-    my $sum1 = sum map {$_ & $flags ? 1 : 0} @good_codes;
-    my $sum2 = sum map {$_ & $flags ? 1 : 0} @bad_codes;
-    if ($sum1 == scalar @good_codes && $sum2 == 0) {
-        print abs($parts[8]), "\n";
-        last if (++$c >= $max_align);
+
+    # handle paired-end data
+    if ($flags & $is_paired) {
+        my $sum1 = sum map {$_ & $flags ? 1 : 0} @good_codes;
+        my $sum2 = sum map {$_ & $flags ? 1 : 0} @bad_codes;
+        next LINE if ($sum1 != scalar @good_codes || $sum2 != 0);
+        my $l = abs $parts[8];
+        next LINE if ($l < 1);
+        print "$l\n";
+        push @lens, $l;
     }
+
+    # handle single-end data
+    else {
+        my $l = length $parts[9];
+        next LINE if ($l < 1);
+        print "$l\n";
+        push @lens, $l;
+
+    }
+
+    last if (++$c >= $max_align);
 }
 close $fh_sam;
+
+if (scalar @lens && defined $fn_svg) {
+
+    print "\n\n=============\n\n";
+
+    my $s = Statistics::KernelEstimation->new();
+
+    for ( @lens ) {
+        $s->add_data( $_ );
+    }
+      
+    my $w = $s->default_bandwidth();
+
+    my ($min, $max) = $s->extended_range();
+
+    open my $stream, '|-', 'gnuplot5';
+    #open my $stream,  '>', 'baaf';
+    print {$stream} '$kde << EOD', "\n";
+
+    for ( my $x=$min; $x<=$max; $x+=($max-$min)/100 ) {
+      print {$stream} $x, "\t", $s->pdf( $x, $w ), "\n";
+    }
+
+    print {$stream} 'EOD', "\n";
+    print {$stream} cmd();
+
+    close $stream;
+}
+
+
+sub cmd {
+
+return <<"CMD"
+set terminal svg size 600,400 fsize 12 name "fragment_length_distribution" butt solid
+set output "$fn_svg"
+set style fill solid 1.0
+set xrange [*:*] noreverse nowriteback
+set yrange [*:*] noreverse nowriteback
+set xtics nomirror out
+set ytics nomirror out
+set xlabel "fragment length (bp)"
+set ylabel "density"
+set key off
+
+plot "\$kde" using 1:2 title "fragment_lengths" lt rgb "#377eb8" with filledcurves x1
+CMD
+;
+}

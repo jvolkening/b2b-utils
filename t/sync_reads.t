@@ -40,4 +40,11 @@ ok( compare($cmp_rev_sync   => $out_rev_sync)   == 0, "rev sync matches" );
 ok( compare($cmp_fwd_single => $out_fwd_single) == 0, "fwd single matches" );
 ok( compare($cmp_rev_single => $out_rev_single) == 0, "rev single matches" );
 
+for (
+    $out_fwd_sync,
+    $out_rev_sync,
+    $out_fwd_single,
+    $out_rev_single,
+) { unlink $_ };
+
 done_testing();

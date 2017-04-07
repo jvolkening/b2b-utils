@@ -7,7 +7,14 @@ use warnings;
 
 use Test::More;
 use File::Temp;
+use File::Which;
 use File::Compare;
+
+# Don't run tests if BWA not installed
+if (! defined which('bwa')) {
+    plan skip_all => "BWA not found so can't test";
+    exit;
+}
 
 my $bin      = 'bin/rm_chim';
 my $in_fq    = 't/test_data/rm_chim.in.fq';

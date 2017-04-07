@@ -9,7 +9,6 @@ bin/alpha/gff3_to_fa
 bin/alpha/gz2dsrc
 bin/alpha/illumina_read_qc
 bin/alpha/plot_coverage
-bin/alpha/rm_gaps
 bin/alpha/seq_diff
 bin/alpha/tm
 bin/bam2consensus
@@ -22,17 +21,20 @@ bin/fasta2phylip
 bin/gb2fasta
 bin/ncbi_blast_update
 bin/rm_chim
+bin/rm_gaps
 bin/summarize_assembly
 bin/sync_reads
 Build.PL
 LICENSE
 MANIFEST			This list of files
+README.md
 t/bam2consensus.t
 t/boot2frac.t
 t/fasta2nexus.t
 t/fasta2phylip.t
 t/pod.t
 t/rm_chim.t
+t/rm_gaps.t
 t/summarize_assembly.t
 t/sync_reads.t
 t/test_data/b2c.bam
@@ -52,9 +54,14 @@ t/test_data/test.aln.phy
 t/test_data/test.newick.in
 t/test_data/test.newick.out.bs500.sf3.md
 t/test_data/test.newick.out.bs600.sf4.mp
+t/test_data/test.rmgap.1.0.fa
+t/test_data/test.rmgap.1.50.fa
+t/test_data/test.rmgap.100.50.fa
 t/test_data/test_R1.fq
 t/test_data/test_R1.singles.fq
 t/test_data/test_R1.sync.fq
 t/test_data/test_R2.fq
 t/test_data/test_R2.singles.fq
 t/test_data/test_R2.sync.fq
+META.yml
+META.json

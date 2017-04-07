@@ -1,0 +1,144 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+use Pod::Usage;
+
+my $cutoff     = 0.1;
+my $min_island = 1;
+
+my $PROGRAM = 'rm_gaps';
+my $VERSION = 0.002;
+
+GetOptions(
+    'cutoff=f'  => \$cutoff,
+    'min_len=i' => \$min_island,
+    'help'      => sub{ pod2usage(-verbose => 2); },
+    'version'   => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+
+) or pod2usage( -verbose => 1);
+
+my %old_seqs;
+my @ordered;
+
+my $s = BioX::Seq::Stream->new();
+
+my $len;
+while (my $obj = $s->next_seq) {
+    my $id = $obj->id;
+    push @ordered, $id;
+    $old_seqs{$id} = $obj->seq;
+    $len //= length($obj);
+    die "sequence length mismatch\n"
+        if (length($obj) != $len);
+}
+
+my @islands;
+my @curr_island;
+
+POS:
+for my $pos (0..$len-1) {
+    my $total_count = 0;
+    my $gap_count   = 0;
+    my @bases = map {substr $old_seqs{$_}, $pos, 1} @ordered;
+    my $gap_frac = scalar( grep {$_ eq '-' } @bases ) / scalar (@bases);
+    if ($gap_frac <= $cutoff) {
+        push @curr_island, [@bases];
+        next POS;
+    }
+
+    # else, if failed cutoff, break current island and skip
+    push @islands, [@curr_island] if (scalar @curr_island >= $min_island);
+    @curr_island = ();
+
+}
+
+# don't forget to handle final island (if present)!!
+push @islands, [@curr_island] if (scalar @curr_island >= $min_island);
+
+# print output
+for my $seq (0..$#ordered) {
+    my $new = BioX::Seq->new('', $ordered[$seq]);
+    for my $i (@islands) {
+        for my $s (@{ $i }) {
+            $new->seq .= $s->[$seq];
+        }
+    }
+    print $new->as_fasta;
+}
+
+__END__
+
+=head1 NAME
+
+rm_gaps - remove gappy columns from multiple alignment
+
+=head1 SYNOPSIS
+
+rm_gaps [--cutoff <float> --min_len <int>] < aligned.fasta > out.fasta
+
+=head1 DESCRIPTION
+
+Reads a multiple alignment in FASTA format from STDIN, removes gap columns
+according to several criteria and prints to STDOUT the modified multiple
+alignment as FASTA.
+
+=head1 PREREQUISITES
+
+Requires the following non-core Perl libraries:
+
+=over 1
+
+=item * BioX::Seq
+
+=back
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<--cutoff> I<float>
+
+Minimum fraction of sequences containing a gap at a position for that column
+to be considered "gappy" and removed (default: 0.1)
+
+=item B<--min_len> I<int>
+
+Minimum length of a sequence "island" (that is, the region between "gappy"
+columns) to be output. Islands shorter than this will be discarded. This
+option can be used to filter out short aligned positions (e.g. 1 or several
+nucleotides long) within otherwise poorly aligned regions. (default: 1)
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jdv@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2014-17 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

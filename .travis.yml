@@ -9,4 +9,5 @@ perl:
 os:
   - linux
 install:
+  - cpanm --quiet --installdeps --notest .
   - cpanm git://github.com/jvolkening/p5-BioX-Seq.git

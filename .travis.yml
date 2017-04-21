@@ -8,3 +8,5 @@ perl:
   - "5.12"
 os:
   - linux
+install:
+  - cpanm git://github.com/jvolkening/p5-BioX-Seq.git

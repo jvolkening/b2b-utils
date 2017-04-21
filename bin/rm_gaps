@@ -63,11 +63,13 @@ push @islands, [@curr_island] if (scalar @curr_island >= $min_island);
 # print output
 for my $seq (0..$#ordered) {
     my $new = BioX::Seq->new('', $ordered[$seq]);
+    my $str = '';
     for my $i (@islands) {
         for my $s (@{ $i }) {
-            $new->seq .= $s->[$seq];
+            $str .= $s->[$seq];
         }
     }
+    $new->seq($str);
     print $new->as_fasta;
 }
 

@@ -1,0 +1,13 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+
+my $p = BioX::Seq::Stream->new;
+
+while (my $seq = $p->next_seq) {
+    print $seq->as_fasta;
+}

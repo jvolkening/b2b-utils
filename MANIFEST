@@ -1,16 +1,3 @@
-bin/alpha/blast_mt
-bin/alpha/find_adapts
-bin/alpha/fq_interleave
-bin/alpha/fq_sort
-bin/alpha/frag_lens
-bin/alpha/get_orfs
-bin/alpha/get_orfs2
-bin/alpha/gff3_to_fa
-bin/alpha/gz2dsrc
-bin/alpha/illumina_read_qc
-bin/alpha/plot_coverage
-bin/alpha/seq_diff
-bin/alpha/tm
 bin/bam2consensus
 bin/blast2diamond
 bin/boot2frac
@@ -18,6 +5,7 @@ bin/bsml2fasta
 bin/decode_sam_flag
 bin/fasta2nexus
 bin/fasta2phylip
+bin/fasta_fix_lines
 bin/gb2fasta
 bin/ncbi_blast_update
 bin/rm_chim
@@ -27,6 +15,8 @@ bin/sync_reads
 Build.PL
 LICENSE
 MANIFEST			This list of files
+META.json
+META.yml
 README.md
 t/bam2consensus.t
 t/boot2frac.t
@@ -63,5 +53,3 @@ t/test_data/test_R1.sync.fq
 t/test_data/test_R2.fq
 t/test_data/test_R2.singles.fq
 t/test_data/test_R2.sync.fq
-META.yml
-META.json

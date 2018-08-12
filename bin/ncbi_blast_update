@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use 5.012;
 
-use Archive::Tar;
+use autodie;
 use DBI;
 use Digest::MD5;
 use English;
@@ -58,7 +58,7 @@ my $res = GetOptions(
 # Handle version requests
 if ($print_version) {
     print 'This is ' , NAME, ' v' , VERSION, "\n";
-    print "Copyright 2014 Jeremy Volkening (jeremy\@base2bio.com)\n";
+    print "Copyright 2014-2018 Jeremy Volkening (jeremy\@base2bio.com)\n";
     print "Licensed under the GNU GPLv3\n";
     exit;
 }
@@ -83,17 +83,7 @@ my $dbh = initialize_sql();
 @dbs = split( /,/, join(',', @dbs) );
 
 # open connection
-my $ftp = Net::FTP->new(
-    SERVER,
-    Passive => $passive,
-    Timeout => $timeout,
-) or log_die( LOG_ERR, "Unable to connect: $@" );
-$ftp->login('anonymous','anonymous')
-    or log_die( LOG_ERR, "Unable to login: " . $ftp->message );
-$ftp->cwd(DB_DIR)
-    or log_die( LOG_ERR, "Unable to cwd: " . $ftp->message );
-$ftp->binary()
-    or log_die( LOG_ERR, "Unable to switch to binary: " . $ftp->message );
+my $ftp = new_conn();
 
 # build directory structure
 my $remote_tree = parse_dir( $ftp->dir() );
@@ -198,6 +188,8 @@ sub download {
 
                 TRY:
                 for (1..$tries) {
+
+                    my $ftp = new_conn();
                     
                     my $remaining = $tries - $_;
                     eval {
@@ -232,11 +224,13 @@ sub download {
                         }
                     };
                     if ($@) {
+                        $ftp->quit;
                         my $error = $@;
                         unlink $file_name if (-e $file_name);
                         die "Failed to download $file_name" if ($remaining < 1);
                         next TRY;
                     }
+                    $ftp->quit;
                     last TRY;
                 }
             }
@@ -396,11 +390,13 @@ sub fetch_md5 {
 
     my $filename = shift;
     my $remote_md5;
-    my $conn = $ftp->retr($filename);
+    my $ftp = new_conn();
+    my $conn = $ftp->retr($filename) or die "RETR failed for $filename: $@ $!";
     my $rcvd = $conn->read($remote_md5, 32);
     die "failed to read md5 hash from $filename\n"
         if ($rcvd != 32);
     $conn->close();
+    $ftp->quit;
     return $remote_md5;
     
 }
@@ -447,6 +443,23 @@ sub take_lock {
     close    $fh                or log_die(LOG_ERR, "close: $!");
 
 }
+
+sub new_conn {
+
+    my $ftp = Net::FTP->new(
+        SERVER,
+        Passive => $passive,
+        Timeout => $timeout,
+    ) or log_die( LOG_ERR, "Unable to connect: $@" );
+    $ftp->login('anonymous','anonymous')
+        or log_die( LOG_ERR, "Unable to login: " . $ftp->message );
+    $ftp->cwd(DB_DIR)
+        or log_die( LOG_ERR, "Unable to cwd: " . $ftp->message );
+    $ftp->binary()
+        or log_die( LOG_ERR, "Unable to switch to binary: " . $ftp->message );
+       return $ftp;
+}
+
 
 __END__
 
@@ -550,7 +563,7 @@ Jeremy Volkening (jeremy@base2bio.com)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014-2017 Jeremy Volkening
+Copyright 2014-2018 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

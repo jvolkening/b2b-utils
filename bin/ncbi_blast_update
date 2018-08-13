@@ -5,12 +5,13 @@ use warnings;
 use 5.012;
 
 use autodie;
+use Carp;
 use DBI;
 use Digest::MD5;
 use English;
-use File::stat;
-use File::Temp qw/tempdir/;
+#use File::stat;
 use Fcntl qw/:DEFAULT :flock :seek/;
+use File::Temp qw/tempdir/;
 use Getopt::Long;
 use List::MoreUtils qw/any/;
 use Net::FTP;
@@ -18,7 +19,7 @@ use Pod::Usage;
 use Sys::Syslog qw/:standard :macros/;
 
 use constant NAME    => 'ncbi_blast_update';
-use constant VERSION => '0.2';
+use constant VERSION => '0.300';
 
 use constant SERVER => 'ftp.ncbi.nlm.nih.gov';
 use constant DB_DIR => '/blast/db';
@@ -33,7 +34,7 @@ my $print_version = 0;
 my $print_help    = 0;
 my @dbs;
 my $local_dir     = '';
-my $delete_first  = 0;
+#my $delete_first  = 0;
 my $clean         = 0;
 my $log           = 0;
 my $tries         = 3;
@@ -66,14 +67,15 @@ if ($print_version) {
 # open syslog connection
 if ($log) {
     openlog( NAME, 'perror', LOG_LOCAL1 )
-        or die "Error opening syslog connection: $!";
+        or croak "Error opening syslog connection: $!";
 }
 
-chdir $local_dir or log_die(LOG_ERR, "Can't cd to $local_dir");
+chdir $local_dir or log_die( LOG_ERR, "Can't cd to $local_dir" );
 
 # check PID file to avoid multiple instances
 take_lock();
 
+# handle various signals by terminating
 $SIG{TERM} = $SIG{KILL} = $SIG{INT} = \&clean_quit;
 
 #open local sqlite db
@@ -82,19 +84,21 @@ my $dbh = initialize_sql();
 # Parse comma-sep db string
 @dbs = split( /,/, join(',', @dbs) );
 
-# open connection
-my $ftp = new_conn();
 
 # build directory structure
+my $ftp = new_conn();
 my $remote_tree = parse_dir( $ftp->dir() );
+$ftp->quit;
+$ftp = undef;
 
 # check all requested DBs against remote tree
 for my $db (@dbs) {
     if ( !any {$db eq $_} keys %{$remote_tree} ) {
-        warn "$db is not a valid database identifier.\n";
-        syslog(LOG_NOTICE, "Invalid database name: $db") if ($log);
+        carp "$db is not a valid database identifier.\n";
+        syslog(LOG_NOTICE, "Invalid database name: $db")
+            if ($log);
         $exit_status = 1;
-        $list_dbs = 1;
+        $list_dbs    = 1;
     }
 }
 
@@ -113,7 +117,7 @@ for my $db (@dbs) {
     eval {download($db) };
 
     if ($@) {
-        warn $@ if ($verbose);
+        carp $@ if ($verbose);
         syslog(LOG_NOTICE, "Download of $db FAILED: $@") if ($log);
         $exit_status = 2;
     }
@@ -124,8 +128,8 @@ clean_quit();
 
 sub download {
 
-    my $db_name = shift;
-    my $temp_dir = tempdir( DIR => $local_dir, CLEANUP => 1 );
+    my ($db_name) = @_;
+    my $temp_dir = tempdir( CLEANUP => 1 );
     chdir $temp_dir; 
 
     my %downloaded;   #track new downloaded .tgz files
@@ -147,7 +151,7 @@ sub download {
         local $SIG{TERM} = local $SIG{INT} = sub {
             unlink glob '*';
             chdir '..';
-            warn "removing $temp_dir\n" if ($verbose);
+            carp "removing $temp_dir\n" if ($verbose);
             rmdir $temp_dir;
             clean_quit();
         };
@@ -163,8 +167,8 @@ sub download {
             my $md5_name  = $remote_tree->{$db_name}->{$idx}->[1];
             my $md5 = fetch_md5( $md5_name );
             $remote_tree->{$db_name}->{$idx}->[2] = $md5;
-            if (defined $existing_files->{$file_name} && $md5 eq
-              $existing_files->{$file_name}->{md5}) {
+            if (defined $existing_files->{$file_name}
+             && $md5 eq $existing_files->{$file_name}->{md5}) {
                 $matching{$file_name} = 1;
             }
         }
@@ -182,6 +186,8 @@ sub download {
         for my $idx (@indices) {
 
             my $file_name = $remote_tree->{$db_name}->{$idx}->[0];
+            croak "Invalid characters in remote filename $file_name"
+                if  ($file_name =~ /\W/);
 
             # download if missing or MD5 mismatch
             if (! defined $matching{$file_name}) {
@@ -189,48 +195,50 @@ sub download {
                 TRY:
                 for (1..$tries) {
 
-                    my $ftp = new_conn();
-                    
                     my $remaining = $tries - $_;
                     eval {
-                        warn "fetching $file_name\n" if ($verbose);
-                        $ftp->get($file_name) or die "Error fetching $file_name: "
+                        carp "fetching $file_name\n" if ($verbose);
+
+                        my $ftp = new_conn();
+                        $ftp->get($file_name) or croak "Error fetching $file_name: "
                             . $ftp->message;
+                        $ftp->quit;
+                        $ftp = undef;
+
                         open my $fh, '<', $file_name;
                         binmode $fh;
-                        warn "calculating MD5 on $file_name\n" if ($verbose);
+                        carp "calculating MD5 on $file_name\n" if ($verbose);
                         my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
                         close $fh;
 
                         my $remote_md5 = $remote_tree->{$db_name}->{$idx}->[2];
-                        die "MD5 mismatch on downloaded $file_name ($remote_md5 v $md5)"
+                        croak "MD5 mismatch on downloaded $file_name ($remote_md5 v $md5)"
                             if ($remote_md5 ne $md5);
 
                         # If we get here, the file downloaded successfully
                         $downloaded{$file_name} = $md5;
                         ++$new_downloads;
 
-                        warn "decompressing $file_name\n" if ($verbose);
+                        carp "decompressing $file_name\n" if ($verbose);
+                        # Be careful here, $file_name must have been sanitized
                         my @files = split /\s+/, `tar -xvzf $file_name`
-                            or die "Error decompressing $file_name: $@";
+                            or croak "Error decompressing $file_name: $@";
                         unlink $file_name;
                         for my $file (@files) {
                             open my $fh, '<', $file;
                             binmode $fh;
-                            warn "calculating MD5 on $file\n" if ($verbose);
+                            carp "calculating MD5 on $file\n" if ($verbose);
                             my $md5 = Digest::MD5->new->addfile($fh)->hexdigest;
                             close $fh;
                             $decompressed{$file} = [$file_name,$md5];
                         }
                     };
                     if ($@) {
-                        $ftp->quit;
                         my $error = $@;
                         unlink $file_name if (-e $file_name);
-                        die "Failed to download $file_name" if ($remaining < 1);
+                        croak "Failed to download $file_name" if ($remaining < 1);
                         next TRY;
                     }
-                    $ftp->quit;
                     last TRY;
                 }
             }
@@ -240,12 +248,13 @@ sub download {
                 my $res = $dbh->selectall_arrayref(
                     "SELECT * FROM files WHERE parent=?", {}, $file_name
                 );
-                my @rows = @{ $res };
-                for my $row (@rows) {
+                for my $row (@{ $res }) {
                     my ($file,$parent,$md5) = @{ $row };
-                    die "Error hardlinking: can't find $file" if (! -e "../$file");
-                    warn "hard linking $file\n" if ($verbose);
-                    link "../$file" => $file; #hard link existing file
+                    croak "Error hardlinking: can't find $file"
+                        if (! -e "$local_dir/$file");
+                    carp "hard linking $file\n"
+                        if ($verbose);
+                    link "$local_dir/$file" => $file; #hard link existing file
                 }
             }
         }
@@ -254,38 +263,38 @@ sub download {
         my $error = $@;
         unlink glob '*';
         chdir '..';
-        warn "removing $temp_dir\n" if ($verbose);
+        carp "removing $temp_dir\n" if ($verbose);
         rmdir $temp_dir;
-        die $error;
+        croak $error;
     }
-    chdir '..';
+    chdir $local_dir;
 
     #If we get this far, all downloads and decompressions were successful
 
     #Delete old files and database entries
     for (keys %orphaned) {
-        warn "deleting $_\n";
+        carp "deleting $_\n";
         unlink $_;
         $dbh->do("DELETE FROM files WHERE name=?", {}, $_)
-            or die "Error deleting $_ from files table";
+            or croak "Error deleting $_ from files table";
     }
     for (keys %{ $existing_files }) {
         next if (defined $matching{$_});
-        warn "removing db entry for $_\n";
+        carp "removing db entry for $_\n";
         $dbh->do("DELETE FROM compressed WHERE name=?", {}, $_)
-            or die "Error deleting $_ from compressed table";
+            or croak "Error deleting $_ from compressed table";
     }
 
     #Add new database entries
     for my $tgz (keys %downloaded) {
         $dbh->do("INSERT INTO compressed VALUES (?,?,?,?)", {},
           $tgz, $db_name, $downloaded{$tgz}, time)
-            or die "Error updating compressed table";
+            or croak "Error updating compressed table";
     }
     for my $file (keys %decompressed) {
         $dbh->do("INSERT INTO files VALUES (?,?,?,?)", {}, $file, $db_name,
           $decompressed{$file}->[0], $decompressed{$file}->[1])
-            or die "Error updating files table";
+            or croak "Error updating files table";
     }
 
     #Copy files
@@ -293,11 +302,11 @@ sub download {
     for (@files) {
         my $newfile = $_;
         $newfile =~ s/^.+\///;
-        warn "moving $_ to $newfile\n" if ($verbose);
+        carp "moving $_ to $newfile\n" if ($verbose);
         rename( $_ => $newfile );
     }
     unlink glob "$temp_dir/*";
-    warn "removing $temp_dir\n" if ($verbose);
+    carp "removing $temp_dir\n" if ($verbose);
     rmdir $temp_dir;
     syslog( LOG_INFO,
         "Successfully updated $db_name ($new_downloads new files)") if ($log);
@@ -336,7 +345,7 @@ sub parse_dir {
     }
 
     # validate structure (all dbs should have a complete and sequential set of
-    # indices (1,2,3,...,n) and paired filenames for each
+    # indices (0,1,2,...,n) and paired filenames for each
 
     for my $db (keys %{$struct}) {
 
@@ -345,7 +354,7 @@ sub parse_dir {
         my $upper = $indices[-1];
         my @test = (0..$upper);
         if (! (@indices ~~ @test)) {
-            warn "Inconsistent structure for $db: @indices\n" if ($verbose);
+            carp "Inconsistent structure for $db: @indices\n" if ($verbose);
             syslog(LOG_NOTICE, "Inconsistent structure for $db: @indices")
                 if ($log);
         }
@@ -367,19 +376,21 @@ sub initialize_sql {
 
     unlink SQL_DB if ($clean);
     my $init = 1 if (! -e SQL_DB);
-    my $dbh = DBI->connect("dbi:SQLite:dbname=ncbi_blast.sqlite","","");
+    my $dbh = DBI->connect("dbi:SQLite:dbname=" . SQL_DB, "", "");
     if ($init) {
         $dbh->do( "CREATE TABLE compressed ( "
             . "name VARCHAR(255) PRIMARY KEY, "
             . "database VARCHAR(64), "
             . "md5 CHAR(16), "
-            . "download_time INTEGER )"
+            . "download_time INTEGER"
+            . ")"
         );
         $dbh->do( "CREATE TABLE files ( "
             . "name VARCHAR(255) PRIMARY KEY, "
             . "database VARCHAR(64), "
             . "parent VARCHAR(255), "
-            . "md5 CHAR(16) )"
+            . "md5 CHAR(16)"
+            . ")"
         );
     }
     return $dbh;
@@ -391,9 +402,9 @@ sub fetch_md5 {
     my $filename = shift;
     my $remote_md5;
     my $ftp = new_conn();
-    my $conn = $ftp->retr($filename) or die "RETR failed for $filename: $@ $!";
+    my $conn = $ftp->retr($filename) or croak "RETR failed for $filename: $@ $!";
     my $rcvd = $conn->read($remote_md5, 32);
-    die "failed to read md5 hash from $filename\n"
+    croak "failed to read md5 hash from $filename\n"
         if ($rcvd != 32);
     $conn->close();
     $ftp->quit;
@@ -418,7 +429,7 @@ sub log_die {
         closelog();
     }
     $ftp->quit if (defined $ftp);
-    die $msg;
+    croak $msg;
 
 }
 
@@ -440,7 +451,7 @@ sub take_lock {
     sysseek  $fh, 0, SEEK_SET or log_die(LOG_ERR, "sysseek: $!");
     truncate $fh, 0,          or log_die(LOG_ERR, "truncate: $!");
     print   {$fh} "$PID\n"    or log_die(LOG_ERR, "print: $!");
-    close    $fh                or log_die(LOG_ERR, "close: $!");
+    close    $fh              or log_die(LOG_ERR, "close: $!");
 
 }
 

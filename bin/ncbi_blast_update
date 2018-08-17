@@ -37,6 +37,7 @@ my $local_path    = '';
 my $clean         = 0;
 my $log           = 0;
 my $tries         = 3;
+my $chmod         = 0;
 my @dbs;
 
 my $exit_status   = 0;
@@ -54,6 +55,7 @@ my $res = GetOptions(
     'clean'         => \$clean,
     'syslog'        => \$log,
     'attempts=i'    => \$tries,
+    'chmod'         => \$chmod,
     'man'           => sub{ pod2usage(-verbose => 2); },
     'help'          => sub{ pod2usage(-verbose => 2); },
 );
@@ -347,6 +349,8 @@ sub download {
         say STDERR "moving $_ to $newfile"
             if ($verbose);
         rename( $_ => $newfile );
+        chmod( 0644, $newfile )
+            if $chmod;
         unlink $_ if (-e $_);
     }
     say STDERR "removing $temp_dir"
@@ -605,7 +609,7 @@ firewall (default: TRUE).
 
 Set FTP timeout, in seconds (default: 600)
 
-=item B<--attempts I<integer>>
+=item B<--attempts< I<integer>
 
 Number of times to attempt a download before giving up (default: 3)
 
@@ -625,6 +629,10 @@ running this command to keep things clean and sychronized.
 =item B<--db> I<string>
 
 Comma-separated list of database names to check/update. Example: 'nt,nr'
+
+=item B<--chmod>
+
+After updating database, make files world-readable.
 
 =item B<--syslog>
 

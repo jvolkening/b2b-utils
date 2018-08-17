@@ -609,7 +609,7 @@ firewall (default: TRUE).
 
 Set FTP timeout, in seconds (default: 600)
 
-=item B<--attempts< I<integer>
+=item B<--attempts> I<integer>
 
 Number of times to attempt a download before giving up (default: 3)
 

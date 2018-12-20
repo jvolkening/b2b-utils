@@ -1,0 +1,120 @@
+start	end	seq1	seq2
+1	1	G	A
+4	4	G	C
+7	7	A	G
+10	11	0 gaps, 2 nt	0 gaps, 2 nt
+13	13	C	G
+16	18	0 gaps, 3 nt	0 gaps, 3 nt
+22	22	C	A
+31	31	G	A
+35	35	G	A
+37	37	C	G
+39	39	A	G
+41	41	G	A
+43	44	0 gaps, 2 nt	0 gaps, 2 nt
+46	47	0 gaps, 2 nt	0 gaps, 2 nt
+49	49	C	T
+55	57	0 gaps, 3 nt	0 gaps, 3 nt
+61	61	A	G
+64	65	0 gaps, 2 nt	0 gaps, 2 nt
+67	68	0 gaps, 2 nt	0 gaps, 2 nt
+70	70	T	C
+72	76	0 gaps, 5 nt	0 gaps, 5 nt
+82	83	0 gaps, 2 nt	1 gaps, 1 nt
+86	86	C	A
+89	89	G	A
+91	91	G	A
+94	94	G	A
+96	96	A	C
+98	100	0 gaps, 3 nt	0 gaps, 3 nt
+102	102	C	T
+104	105	0 gaps, 2 nt	0 gaps, 2 nt
+108	108	G	C
+110	111	0 gaps, 2 nt	2 gaps, 0 nt
+113	113	A	G
+115	115	C	G
+117	118	0 gaps, 2 nt	0 gaps, 2 nt
+121	124	0 gaps, 4 nt	0 gaps, 4 nt
+128	128	G	A
+130	130	A	C
+133	134	0 gaps, 2 nt	0 gaps, 2 nt
+136	136	A	C
+139	139	C	G
+141	141	A	C
+143	146	3 gaps, 1 nt	0 gaps, 4 nt
+148	148	G	A
+152	154	0 gaps, 3 nt	0 gaps, 3 nt
+156	156	C	A
+160	161	0 gaps, 2 nt	0 gaps, 2 nt
+163	164	0 gaps, 2 nt	0 gaps, 2 nt
+167	167	G	A
+169	169	A	T
+173	174	0 gaps, 2 nt	0 gaps, 2 nt
+176	177	0 gaps, 2 nt	0 gaps, 2 nt
+181	181	G	T
+184	184	T	A
+187	187	A	C
+189	190	0 gaps, 2 nt	0 gaps, 2 nt
+193	194	0 gaps, 2 nt	0 gaps, 2 nt
+196	196	C	A
+199	199	A	G
+202	202	T	C
+208	208	A	C
+211	211	G	A
+219	219	G	A
+223	223	A	T
+226	227	0 gaps, 2 nt	0 gaps, 2 nt
+229	229	C	A
+232	232	C	G
+238	238	C	T
+241	241	C	T
+244	244	G	A
+253	253	C	T
+262	262	G	T
+281	285	0 gaps, 5 nt	0 gaps, 5 nt
+294	296	0 gaps, 3 nt	0 gaps, 3 nt
+298	300	0 gaps, 3 nt	0 gaps, 3 nt
+302	303	0 gaps, 2 nt	0 gaps, 2 nt
+305	306	0 gaps, 2 nt	0 gaps, 2 nt
+310	310	C	A
+312	313	0 gaps, 2 nt	0 gaps, 2 nt
+315	322	0 gaps, 8 nt	0 gaps, 8 nt
+324	328	0 gaps, 5 nt	0 gaps, 5 nt
+330	330	C	G
+332	334	0 gaps, 3 nt	0 gaps, 3 nt
+338	338	G	C
+340	343	0 gaps, 4 nt	0 gaps, 4 nt
+346	346	T	C
+350	351	0 gaps, 2 nt	0 gaps, 2 nt
+354	354	A	G
+358	358	G	A
+360	360	G	A
+364	365	0 gaps, 2 nt	0 gaps, 2 nt
+367	367	T	G
+370	381	0 gaps, 12 nt	12 gaps, 0 nt
+383	383	C	A
+390	390	T	C
+392	399	0 gaps, 8 nt	0 gaps, 8 nt
+407	408	0 gaps, 2 nt	0 gaps, 2 nt
+411	411	C	A
+414	414	G	T
+418	418	C	A
+420	420	G	A
+423	423	T	C
+435	435	T	A
+438	438	C	A
+450	450	G	A
+453	453	G	A
+459	459	C	A
+462	462	A	T
+481	481	G	T
+489	489	C	T
+495	495	C	T
+498	498	G	A
+504	504	A	G
+513	513	G	A
+523	523	G	A
+542	542	C	T
+550	550	A	C
+558	558	T	C
+589	589	C	A

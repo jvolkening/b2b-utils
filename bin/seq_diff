@@ -1,0 +1,125 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+use Pod::Usage;
+
+my $aln = $ARGV[0];
+
+GetOptions(
+    'man'              => sub{ pod2usage(-verbose => 2); },
+    'help'             => sub{ pod2usage(-verbose => 2); },
+);
+
+my $s = BioX::Seq::Stream->new($aln);
+
+my $seq1 = uc $s->next_seq->seq;
+my $seq2 = uc $s->next_seq->seq;
+die "Error reading aligned seqs\n"
+    if (! defined $seq1 || ! defined $seq2);
+
+say join "\t", qw/
+    start
+    end
+    seq1
+    seq2
+/;
+
+my $len = length $seq1;
+my $last_start;
+my $last_end;
+my @last_1;
+my @last_2;
+for my $pos (0..$len-1) {
+    my $base1 = substr $seq1, $pos, 1;
+    my $base2 = substr $seq2, $pos, 1;
+    if ($base1 eq $base2) {
+        if (defined $last_start) {
+           
+            # reformat long diff strings
+            for my $last (\@last_1, \@last_2) {
+                if (scalar @$last > 1) {
+                    my $bps  = grep {$_ ne '-'} @$last;
+                    my $gaps = grep {$_ eq '-'} @$last;
+                    @$last = ("$gaps gaps, $bps nt");
+                }
+            }
+            say join "\t",
+                $last_start,
+                $last_end,
+                $last_1[0],
+                $last_2[0],
+             ;
+             $last_start = undef;
+             $last_end   = undef;
+             @last_1 = ();
+             @last_2 = ();
+        }
+    }
+    else {
+        $last_start //= $pos+1;
+        $last_end = $pos+1;
+        push @last_1, $base1;
+        push @last_2, $base2;
+    }
+}
+
+exit;
+
+__END__
+
+=head1 NAME
+
+seq_diff - list differences between two sequences by position
+
+=head1 SYNOPSIS
+
+seq_diff < aln_file > aln_diff
+
+=head1 DESCRIPTION
+
+This is a "diff-like" program which takes an alignment of two sequences in
+FASTA format on STDIN and reports the differences by base position. It is
+intended to be used on similar sequences with only a few expected changes -
+otherwise the list of differences might get rather long. 
+
+=head1 PREREQUISITES
+
+Requires the following non-core Perl libraries:
+
+=over 1
+
+=item * BioX::Seq
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jdv@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2014-18 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

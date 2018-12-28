@@ -1,0 +1,114 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use Cwd qw/abs_path/;
+use List::Util qw/sum/;
+use Getopt::Long;
+use File::Temp qw/tempdir tempfile/;
+use BioX::Seq::Stream;
+
+my $reads_f;
+my $reads_r;
+my $seq_5;
+my $seq_3;
+my $fn_intra;
+my $fn_inter;
+
+GetOptions(
+    'forward=s' => \$reads_f,
+    'reverse=s' => \$reads_r,
+    'seq_5=s'   => \$seq_5,
+    'seq_3=s'   => \$seq_3,
+    'intra=s'   => \$fn_intra,
+    'inter=s'   => \$fn_inter,
+);
+
+$seq_5 = uc $seq_5;
+$seq_3 = uc $seq_3;
+
+my $seq_5_rc = reverse $seq_5;
+$seq_5_rc =~ tr/ATGC/TACG/;
+my $seq_3_rc = reverse $seq_3;
+$seq_3_rc =~ tr/ATGC/TACG/;
+
+my $re_f = qr/$seq_5.*$seq_3/;
+my $re_r = qr/$seq_3_rc.*$seq_5_rc/;
+
+my $pf = BioX::Seq::Stream->new($reads_f);
+my $pr = defined $reads_r
+    ? BioX::Seq::Stream->new($reads_r)
+    : undef;
+
+my @intra_hits;
+my @inter_hits;
+
+while (my $seq_f = $pf->next_seq) {
+
+    my %matched;
+    my $str_f = uc $seq_f->seq;
+
+    if ($str_f =~ /$re_f/) {
+        push @intra_hits, $seq_f;
+    }
+    elsif ($str_f =~ /$re_r/) {
+        push @intra_hits, $seq_f;
+    }
+    elsif ($str_f =~ /$seq_5/) {
+        ++$matched{f_5}; 
+    }
+    elsif ($str_f =~ /$seq_3_rc/) {
+        ++$matched{f_3}; 
+    }
+
+    my $seq_r;
+    if (defined $pr) {
+        $seq_r = $pr->next_seq;
+        my $str_r = uc $seq_r->seq;
+        if ($str_r =~ /$re_f/) {
+            push @intra_hits, $seq_r;
+        }
+        elsif ($str_r =~ /$re_r/) {
+            push @intra_hits, $seq_r;
+        }
+        elsif ($str_r =~ /$seq_5/) {
+            ++$matched{r_5}; 
+        }
+        elsif ($str_r =~ /$seq_3_rc/) {
+            ++$matched{r_3}; 
+        }
+    }
+
+    if (
+        ($matched{f_5} && $matched{r_3})
+     || ($matched{r_5} && $matched{f_3})
+    ) {
+        push @inter_hits, [$seq_f, $seq_r];
+    };
+
+}        
+
+my $n_intra = scalar @intra_hits;
+my $n_inter = scalar @inter_hits;
+
+say "Intra: $n_intra";
+say "Inter: $n_inter";
+
+if (defined $fn_intra) {
+    open my $fh, '>', $fn_intra;
+    for (@intra_hits) {
+        print {$fh} $_->as_fastq;
+    }
+    close $fh;
+}
+if (defined $fn_inter) {
+    open my $fh, '>', $fn_inter;
+    for (@inter_hits) {
+        print {$fh} $_->[0]->as_fastq;
+        print {$fh} $_->[1]->as_fastq;
+    }
+    close $fh;
+}

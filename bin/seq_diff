@@ -7,6 +7,7 @@ use 5.012;
 use BioX::Seq::Stream;
 use Getopt::Long;
 use Pod::Usage;
+use List::Util qw/uniq/;
 
 my $aln = $ARGV[0];
 
@@ -17,31 +18,35 @@ GetOptions(
 
 my $s = BioX::Seq::Stream->new($aln);
 
-my $seq1 = uc $s->next_seq->seq;
-my $seq2 = uc $s->next_seq->seq;
-die "Error reading aligned seqs\n"
-    if (! defined $seq1 || ! defined $seq2);
+my @seqs;
+my @ids;
+while (my $seq = $s->next_seq) {
+    push @seqs, uc $seq->seq;
+    push @ids,  $seq->id;
+}
+die "Too few sequences\n"
+    if (scalar @seqs < 2);
 
-say join "\t", qw/
-    start
-    end
-    seq1
-    seq2
-/;
+say join "\t",
+    'start',
+    'end',
+    @ids,
+;
 
-my $len = length $seq1;
+my $len = length $seqs[0];
 my $last_start;
 my $last_end;
-my @last_1;
-my @last_2;
+#my @last_1;
+#my @last_2;
+my @lasts;
 for my $pos (0..$len-1) {
-    my $base1 = substr $seq1, $pos, 1;
-    my $base2 = substr $seq2, $pos, 1;
-    if ($base1 eq $base2) {
+    my @bases = map {substr $_, $pos, 1} @seqs;
+    my @u = uniq @bases;
+    if (scalar @u == 1) {
         if (defined $last_start) {
            
             # reformat long diff strings
-            for my $last (\@last_1, \@last_2) {
+            for my $last (@lasts) {
                 if (scalar @$last > 1) {
                     my $bps  = grep {$_ ne '-'} @$last;
                     my $gaps = grep {$_ eq '-'} @$last;
@@ -51,20 +56,19 @@ for my $pos (0..$len-1) {
             say join "\t",
                 $last_start,
                 $last_end,
-                $last_1[0],
-                $last_2[0],
+                (map {$_->[0]} @lasts),
              ;
              $last_start = undef;
              $last_end   = undef;
-             @last_1 = ();
-             @last_2 = ();
+             @lasts = ();
         }
     }
     else {
         $last_start //= $pos+1;
         $last_end = $pos+1;
-        push @last_1, $base1;
-        push @last_2, $base2;
+        for (0..$#bases) {
+            push @{ $lasts[$_] }, $bases[$_];
+        }
     }
 }
 

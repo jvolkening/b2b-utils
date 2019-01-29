@@ -101,7 +101,7 @@ bwa(
 # Report sequences to be reverse-completemented
 for my $id (keys %{ $meta->{rc} }) {
     if ($meta->{rc}->{$id} xor $final_rc) {
-        say STDERR "Reverse complemented $id"
+        say STDERR "Reverse complemented $id";
         $seqs{$id}->desc = join ' ',
             $seqs{$id}->desc,
             'rc=true',

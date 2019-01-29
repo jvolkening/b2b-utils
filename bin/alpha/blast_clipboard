@@ -1,0 +1,148 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use File::Temp;
+use File::Which;
+use Getopt::Long;
+
+my $clipboard  = 'clipboard'; # 'clipboard' or 'primary'
+my $dbtype     = 'nucleotide';
+my $database   = 'nr';
+my $program    = 'megaBlast';
+
+GetOptions(
+    'clipboard=s' => \$clipboard,
+    'dbtype=s'    => \$dbtype,
+    'database=s'  => \$database,
+    'program=s'   => \$program,
+);
+
+# check for necessary binaries
+which('xclip')   // die "Missing required xclip binary\n";
+which('sensible-browser') // die "Missing required sensible-browser binary\n";
+
+my $query = `xclip -selection $clipboard -o -`;
+$query =~ s/\s//g;
+
+# sanity check returned contents
+exit 1 if (! length $query);
+exit 1 if ($query =~ /[^A-Z]/i);
+
+my $form = File::Temp->new(UNLINK => 1, SUFFIX => '.html');
+print {$form} form_contents() ;
+close $form;
+
+exit system('sensible-browser', $form);
+
+sub form_contents {
+
+    return <<"FORM";
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+    <title></title>
+    <meta http-equiv="content-type" content="application/xhtml+xml; charset=utf-8" />
+</head>
+<body onload="document.blast.submit();">
+<form name="blast" action="https://blast.ncbi.nlm.nih.gov/Blast.cgi" method="post">
+   <input type="hidden" name="QUERY" value="$query" />
+   <input type="hidden" name="db" value="$dbtype" />
+   <input type="hidden" name="QUERY_FROM" value="" />
+   <input type="hidden" name="QUERY_TO" value="" />
+   <input type="hidden" name="GENETIC_CODE" value="1" />
+   <input type="hidden" name="JOB_TITLE" value="" />
+   <input type="hidden" name="SUBJECTS" value="" />
+   <input type="hidden" name="stype" value="nucleotide" />
+   <input type="hidden" name="SUBJECTS_FROM" value="" />
+   <input type="hidden" name="SUBJECTS_TO" value="" />
+   <input type="hidden" name="DBTYPE" value="gc" />
+   <input type="hidden" name="DATABASE" value="$database" />
+   <input type="hidden" name="EQ_MENU" value="" />
+   <input type="hidden" name="NUM_ORG" value="1" />
+   <input type="hidden" name="EQ_TEXT" value="" />
+   <input type="hidden" name="BLAST_PROGRAMS" value="$program" />
+   <input type="hidden" name="PHI_PATTERN" value="" />
+   <input type="hidden" name="MAX_NUM_SEQ" value="100" />
+   <input type="hidden" name="SHORT_QUERY_ADJUST" value="on" />
+   <input type="hidden" name="EXPECT" value="10" />
+   <input type="hidden" name="WORD_SIZE" value="28" />
+   <input type="hidden" name="HSP_RANGE_MAX" value="0" />
+   <input type="hidden" name="MATRIX_NAME" value="PAM30" />
+   <input type="hidden" name="MATCH_SCORES" value="1,-2" />
+   <input type="hidden" name="GAPCOSTS" value="0 0" />
+   <input type="hidden" name="COMPOSITION_BASED_STATISTICS" value="0" />
+   <input type="hidden" name="FILTER" value="L" />
+   <input type="hidden" name="REPEATS" value="repeat_9606" />
+   <input type="hidden" name="FILTER" value="m" />
+   <input type="hidden" name="TEMPLATE_LENGTH" value="0" />
+   <input type="hidden" name="TEMPLATE_TYPE" value="0" />
+   <input type="hidden" name="I_THRESH" value="" />
+   <input type="hidden" name="DI_THRESH" value="" />
+   <input type="hidden" name="PSI_PSEUDOCOUNT" value="" />
+   <input type="hidden" name="SHOW_OVERVIEW" value="on" />
+   <input type="hidden" name="SHOW_LINKOUT" value="on" />
+   <input type="hidden" name="GET_SEQUENCE" value="on" />
+   <input type="hidden" name="FORMAT_OBJECT" value="Alignment" />
+   <input type="hidden" name="FORMAT_TYPE" value="HTML" />
+   <input type="hidden" name="ALIGNMENT_VIEW" value="Pairwise" />
+   <input type="hidden" name="MASK_CHAR" value="2" />
+   <input type="hidden" name="MASK_COLOR" value="1" />
+   <input type="hidden" name="DESCRIPTIONS" value="100" />
+   <input type="hidden" name="ALIGNMENTS" value="100" />
+   <input type="hidden" name="LINE_LENGTH" value="60" />
+   <input type="hidden" name="NEW_VIEW" value="" />
+   <input type="hidden" name="OLD_VIEW" value="false" />
+   <input type="hidden" name="NCBI_GI" value="" />
+   <input type="hidden" name="SHOW_CDS_FEATURE" value="" />
+   <input type="hidden" name="NUM_OVERVIEW" value="100" />
+   <input type="hidden" name="FORMAT_EQ_TEXT" value="" />
+   <input type="hidden" name="FORMAT_ORGANISM" value="" />
+   <input type="hidden" name="EXPECT_LOW" value="" />
+   <input type="hidden" name="EXPECT_HIGH" value="" />
+   <input type="hidden" name="PERC_IDENT_LOW" value="" />
+   <input type="hidden" name="PERC_IDENT_HIGH" value="" />
+   <input type="hidden" name="QUERY_INDEX" value="0" />
+   <input type="hidden" name="FORMAT_NUM_ORG" value="1" />
+   <input type="hidden" name="CONFIG_DESCR" value="2,3,4,5,6,7,8" />
+   <input type="hidden" name="CLIENT" value="web" />
+   <input type="hidden" name="SERVICE" value="plain" />
+   <input type="hidden" name="CMD" value="request" />
+   <input type="hidden" name="PAGE" value="MegaBlast" />
+   <input type="hidden" name="PROGRAM" value="blastn" />
+   <input type="hidden" name="MEGABLAST" value="on" />
+   <input type="hidden" name="RUN_PSIBLAST" value="" />
+   <input type="hidden" name="WWW_BLAST_TYPE" value="" />
+   <input type="hidden" name="TWO_HITS" value="" />
+   <input type="hidden" name="DEFAULT_PROG" value="megaBlast" />
+   <input type="hidden" name="DB_DISPLAY_NAME" value="" />
+   <input type="hidden" name="ORG_DBS" value="" />
+   <input type="hidden" name="SHOW_ORGANISMS" value="" />
+   <input type="hidden" name="DBTAXID" value="" />
+   <input type="hidden" name="SAVED_PSSM" value="" />
+   <input type="hidden" name="SELECTED_PROG_TYPE" value="megaBlast" />
+   <input type="hidden" name="SAVED_SEARCH" value="" />
+   <input type="hidden" name="BLAST_SPEC" value="" />
+   <input type="hidden" name="MIXED_DATABASE" value="" />
+   <input type="hidden" name="QUERY_BELIEVE_DEFLINE" value="" />
+   <input type="hidden" name="DB_DIR_PREFIX" value="" />
+   <input type="hidden" name="USER_DATABASE" value="" />
+   <input type="hidden" name="USER_WORD_SIZE" value="" />
+   <input type="hidden" name="USER_MATCH_SCORES" value="" />
+   <input type="hidden" name="USER_FORMAT_DEFAULTS" value="" />
+   <input type="hidden" name="NO_COMMON" value="" />
+   <input type="hidden" name="NUM_DIFFS" value="0" />
+   <input type="hidden" name="NUM_OPTS_DIFFS" value="0" />
+   <input type="hidden" name="UNIQ_DEFAULTS_NAME" value="" />
+   <input type="hidden" name="PAGE_TYPE" value="BlastSearch" />
+   <input type="hidden" name="USER_DEFAULT_PROG_TYPE" value="megaBlast" />
+   <input type="hidden" name="USER_DEFAULT_MATCH_SCORES" value="0" />
+</form>
+</body>
+</html>
+FORM
+
+}

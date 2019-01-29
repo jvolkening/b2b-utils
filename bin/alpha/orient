@@ -1,0 +1,180 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use autodie;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+use File::Temp;
+use List::Util qw/sum/;
+
+my $fn_assembly;
+my $start_refs;
+my $start_seq;
+my $end_refs;
+my $end_seq;
+my $threads = 1;
+
+GetOptions(
+    'assembly=s'   => \$fn_assembly,
+    'start_refs=s' => \$start_refs,
+    'end_refs=s'   => \$end_refs,
+    'start_seq=s'  => \$start_seq,
+    'end_seq=s'    => \$end_seq,
+    'threads=i'    => \$threads,
+);
+
+my $final_rc = 0;
+
+# validate params
+my $status = sum map {
+    defined $_ ? 1 : 0
+} ($start_refs, $start_seq, $end_refs, $end_seq);
+if ($status != 1) {
+    die "One and only one reference file or sequence must be specified\n";
+}
+
+die "Bad thread count"
+    if ($threads =~ /\D/);
+
+my %seqs;
+# if $fn_assembly is undefined, data is read from STDIN
+my $p = BioX::Seq::Stream->new($fn_assembly);
+while (my $seq = $p->next_seq) {
+    $seqs{$seq->id} = $seq;
+}
+
+my $tags = File::Temp->new();
+if (defined $start_refs) {
+    my $p = BioX::Seq::Stream->new($start_refs);
+    while (my $seq = $p->next_seq) {
+        my $sub = $seq->range(1 => 40);
+        $sub->id = $seq->id;
+        print {$tags} $sub->as_fasta;
+    }
+}
+elsif (defined $end_refs) {
+    my $p = BioX::Seq::Stream->new($end_refs);
+    while (my $seq = $p->next_seq) {
+        my $sub = $seq->range(
+            length($seq)-39,
+            length($seq)
+        );
+        $sub->id = $seq->id;
+        print {$tags} $sub->rev_com()->as_fasta;
+    }
+    $final_rc = 1;
+}
+elsif (defined $start_seq) {
+    print {$tags} BioX::Seq->new(
+        $start_seq,
+        'start_tag',
+    )->as_fasta;
+}
+elsif (defined $end_seq) {
+    print {$tags} BioX::Seq->new(
+        $end_seq,
+        'end_tag',
+    )->rev_com->as_fasta;
+    $final_rc = 1;
+}
+
+my $ret;
+
+my $meta = {};
+
+my $dir = File::Temp->newdir(CLEANUP => 1);
+my $fn_tmp = "$dir/tmp.fa";
+open my $tmp, '>', $fn_tmp;
+for my $id (keys %seqs) {
+    print {$tmp} $seqs{$id}->as_fasta;
+}
+close $tmp;
+bwa(
+    $fn_tmp,
+    $tags,
+    $meta,
+);
+# Report sequences to be reverse-completemented
+for my $id (keys %{ $meta->{rc} }) {
+    if ($meta->{rc}->{$id} xor $final_rc) {
+        say STDERR "Reverse complemented $id"
+        $seqs{$id}->desc = join ' ',
+            $seqs{$id}->desc,
+            'rc=true',
+        ;
+    }
+}
+
+# rev com and re-map if needed
+if (grep {$_} values %{ $meta->{rc} }) {
+    my $dir = File::Temp->newdir(CLEANUP => 1);
+    my $fn_tmp = "$dir/tmp.fa";
+    open my $tmp, '>', $fn_tmp;
+    for my $id (
+        grep {$meta->{rc}->{$_}} keys %{ $meta->{rc} }
+    ) {
+        $seqs{$id} = $seqs{$id}->rev_com();
+        print {$tmp} $seqs{$id}->as_fasta;
+    }
+    close $tmp;
+    bwa(
+        $fn_tmp,
+        $tags,
+        $meta,
+    );
+
+}
+
+# perform rotation
+for my $id (keys %{$meta->{rotate} }) {
+    next if (! defined $seqs{$id}->desc
+        || $seqs{$id}->desc !~ /\bcircular=true\b/);
+    my $str = $seqs{$id}->seq;
+    my $begin = substr $str, 0, $meta->{rotate}->{$id}, '';
+    $str .= $begin;
+    $seqs{$id}->seq = $str;
+    $seqs{$id}->desc = join ' ',
+        $seqs{$id}->desc,
+        'rotated=true',
+    ;
+    say STDERR "Rotated $id by $meta->{rotate}->{$id}";
+}
+
+
+for my $chr (sort {
+    length($seqs{$b}) <=> length($seqs{$a})
+} keys %seqs) {
+    if ($final_rc && defined $meta->{rotate}->{$chr}) {
+        $seqs{$chr}->rev_com();
+    }
+    print $seqs{$chr}->as_fasta;
+}
+
+sub bwa {
+
+    my ($ass, $tags, $meta) = @_;
+
+    # index assembly
+    $ret = system( "bwa index $ass 2> /dev/null" );
+    die "bwa index failed: $!" if $ret;
+
+    open my $bwa, '-|', "bwa mem -t $threads $ass $tags 2> /dev/null";
+
+    while (my $line = <$bwa>) {
+        chomp $line;
+        next if ($line =~ /^@/);
+        my @fields = split "\t", $line;
+        if ($fields[1] == 16) {
+            $meta->{rc}->{$fields[2]} = 1;
+        }
+        elsif ($fields[1] == 0) {
+            $meta->{rotate}->{$fields[2]} = $fields[3] - 1;
+            $meta->{rc}->{$fields[2]} = 0;
+        }
+    }
+
+}

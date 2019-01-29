@@ -1,0 +1,262 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+
+my $fn_fa;
+my $out_fa;
+my $out_bed;
+my $fix_5    = 0;
+my $fix_3    = 0;
+my $seed_len = 20;
+my $tag_5;
+my $tag_3;
+
+GetOptions(
+    'in=s'       => \$fn_fa,
+    'out_fa=s'   => \$out_fa,
+    'out_bed=s'  => \$out_bed,
+    'fix_5'      => \$fix_5,
+    'fix_3'      => \$fix_3,
+    'seed_len=i' => \$seed_len,
+    'tag_5=s'    => \$tag_5,
+    'tag_3=s'    => \$tag_3,
+);
+
+my $raw = BioX::Seq::Stream->new($fn_fa)->next_seq;
+
+if (! ($fix_5 || $fix_3) ) {
+    say STDERR "Nothing to be done!\n";
+    exit;
+}
+
+my $five;
+my $three;
+
+if ($fix_5) {
+
+    my (
+        $outer_start,
+        $outer_end,
+        $inner_start,
+        $inner_end,
+        $copy_start,
+    ) = find_repeat($raw, $tag_5);
+
+    say "Boundary found from $inner_start to $inner_end";
+    say "Boundary found from $outer_start to $outer_end";
+    say "Copying RC of $copy_start to $inner_end";
+
+    my $add = $raw->range(
+        $copy_start,
+        $inner_end
+    )->rev_com;
+    $five = {
+        add => $add,
+        s_outer => $outer_start,
+        e_outer => $outer_end,
+        s_inner => $inner_start,
+        e_inner => $inner_end,
+    };
+
+}
+
+if ($fix_3) {
+
+    my (
+        $outer_end,
+        $outer_start,
+        $inner_end,
+        $inner_start,
+        $copy_start,
+    ) = map {
+        length($raw) - $_ + 1
+    } find_repeat($raw->rev_com, $tag_3);
+    
+    say "Boundary found from $inner_start to $inner_end";
+    say "Boundary found from $outer_start to $outer_end";
+    say "Copying RC of $inner_start to $copy_start";
+
+    my $add = $raw->range(
+        $inner_start,
+        $copy_start
+    )->rev_com;
+    $three = {
+        add => $add,
+        s_outer => $outer_start,
+        e_outer => $outer_end,
+        s_inner => $inner_start,
+        e_inner => $inner_end,
+    };
+
+
+}
+
+if (! ($five || $three) ) {
+    say STDERR "No boundaries found so no output will be produced!\n";
+    exit;
+}
+
+if ($five) {
+    
+    my $l = length $five->{add};
+    $raw->seq = $five->{add}->seq . $raw->seq;
+    for (qw/
+        s_outer
+        e_outer
+        s_inner
+        e_inner
+    /) {
+        $five->{$_} += $l  if ($_ ne 's_outer');
+        $three->{$_} += $l if ($three);
+    }
+
+}
+        
+if ($three) {
+    
+    my $l = length $three->{add};
+    $raw->seq .= $three->{add}->seq;
+    for (qw/
+        e_outer
+    /) {
+        $three->{$_} += $l;
+    }
+
+}
+
+
+# write updated FASTA
+open my $fh_fa, '>', $out_fa;
+print {$fh_fa} $raw->as_fasta;
+close $fh_fa;
+
+# write coordinates as BED
+open my $fh_bed, '>', $out_bed;
+if ($five) {
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $five->{s_outer} - 1,
+        $five->{e_outer},
+        'TRL',
+    ;
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $five->{e_outer},
+        $five->{s_inner} - 1,
+        'UL',
+    ;
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $five->{s_inner} - 1,
+        $five->{e_inner},
+        'IRL',
+    ;
+}
+else {
+    say {$fh_bed} join "\t",
+        $raw->id,
+        0,
+        $three->{s_inner} - 1,
+        'UL',
+    ;
+}
+if ($three) {
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $three->{s_inner} - 1,
+        $three->{e_inner},
+        'IRS',
+    ;
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $three->{e_inner},
+        $three->{s_outer} - 1,
+        'US',
+    ;
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $three->{s_outer} - 1,
+        $three->{e_outer},
+        'TRS',
+    ;
+}
+else {
+    say {$fh_bed} join "\t",
+        $raw->id,
+        $five->{e_inner},
+        length($raw),
+        'US',
+    ;
+}
+close $fh_bed;
+
+sub find_repeat {
+
+    my ($seq, $tag) = @_;
+
+    my $inner_start;
+    my $inner_end;
+    my $outer_start = 1;
+    my $outer_end;
+    my $copy_start;
+  
+    die "seq too short\n"
+        if (length $seq < $seed_len);
+    my $term_5  = $seq->range(1, $seed_len);
+    my $inner_5 = $term_5->rev_com;
+    if ($seq =~ /$inner_5/) {
+        $copy_start = $+[0] + 1;
+        my $outer_pos  = $seed_len;
+        my $inner_pos  = $-[0] - 1;
+        ITER:
+        while (1) {
+            my $outer = uc substr $seq, $outer_pos, 1;
+            my $inner = uc substr $seq, $inner_pos, 1;
+            $inner =~ tr/ATGC/TACG/;
+            if ($outer eq $inner) {
+                ++$outer_pos;
+                --$inner_pos;
+                if ($outer_pos >= $inner_pos) {
+                    die "5' terminus search met in middle without finding edge\n";
+                }
+                next ITER;
+            }
+            else {
+                $inner_start = $inner_pos + 2;
+                $outer_end   = $outer_pos;
+                last ITER;
+            }
+        }
+        my @bounds;
+        while ($seq =~ /$tag/g) {
+            push @bounds, $+[0];
+        }
+        if (! scalar  @bounds) {
+            die "Failed to find 5' internal boundary\n"
+        }
+        elsif (scalar @bounds > 1) {
+            warn "Found multiple internal boundaries, using the first found\n";
+        }
+        $inner_end = $bounds[0];
+
+    }
+
+    return (
+        $outer_start,
+        $outer_end,
+        $inner_start,
+        $inner_end,
+        $copy_start,
+    );
+
+}
+            
+            
+        
+
+    

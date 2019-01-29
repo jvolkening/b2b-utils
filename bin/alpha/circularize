@@ -39,10 +39,10 @@ for my $chr (sort {
 sub circularize {
 
     my ($seq) = @_;
-    #my $wd = File::Temp->newdir(CLEANUP => 1);
+    my $wd = File::Temp->newdir(CLEANUP => 1);
 
-    #my $cwd = abs_path( getcwd());
-    #chdir $wd;
+    my $cwd = abs_path( getcwd());
+    chdir $wd;
 
     my $id = $seq->id;
     my $desc = $seq->desc;
@@ -101,7 +101,7 @@ sub circularize {
         warn "Minimus2 failed completely on $id, returning original sequence\n";
     }
 
-    #chdir $cwd;
+    chdir $cwd;
 
     return $seq;
 

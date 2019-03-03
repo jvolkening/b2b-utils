@@ -11,3 +11,11 @@ os:
 install:
   - cpanm git://github.com/jvolkening/p5-BioX-Seq.git
   - cpanm --quiet --installdeps --notest .
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - libgd-dev
+    - libdb-dev
+

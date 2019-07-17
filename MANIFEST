@@ -6,6 +6,7 @@ bin/decode_sam_flag
 bin/fasta2nexus
 bin/fasta2phylip
 bin/fasta_fix_lines
+bin/frag_lens
 bin/gb2fasta
 bin/ncbi_blast_update
 bin/rm_chim
@@ -23,6 +24,7 @@ t/bam2consensus.t
 t/boot2frac.t
 t/fasta2nexus.t
 t/fasta2phylip.t
+t/frag_lens.t
 t/pod.t
 t/rm_chim.t
 t/rm_gaps.t
@@ -35,6 +37,10 @@ t/test_data/b2c.mod.fa.fai
 t/test_data/b2c.out.bg
 t/test_data/b2c.out.fa
 t/test_data/b2c.out.tsv
+t/test_data/frag.lens
+t/test_data/frag_cons.fa
+t/test_data/frag_R1.fq
+t/test_data/frag_R2.fq
 t/test_data/pair.aln.fa
 t/test_data/pair.diff.tsv
 t/test_data/rm_chim.in.fq

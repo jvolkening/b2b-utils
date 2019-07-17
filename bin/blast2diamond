@@ -16,7 +16,7 @@ my $pfx_out;
 my %BINS;
 
 for (qw/blastdbcmd diamond/) {
-    $BINS{$_} = which $_ // die "$_ is required to run this program. Install"
+    $BINS{$_} = which($_) // die "$_ is required to run this program. Install"
         . " or check your \$PATH";
 }
 

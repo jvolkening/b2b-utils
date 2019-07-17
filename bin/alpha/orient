@@ -98,14 +98,10 @@ bwa(
     $tags,
     $meta,
 );
-# Report sequences to be reverse-completemented
+# Report sequences to be reverse-complemented
 for my $id (keys %{ $meta->{rc} }) {
     if ($meta->{rc}->{$id} xor $final_rc) {
         say STDERR "Reverse complemented $id";
-        $seqs{$id}->desc = join ' ',
-            $seqs{$id}->desc,
-            'rc=true',
-        ;
     }
 }
 
@@ -139,7 +135,7 @@ for my $id (keys %{$meta->{rotate} }) {
     $seqs{$id}->seq = $str;
     $seqs{$id}->desc = join ' ',
         $seqs{$id}->desc,
-        'rotated=true',
+        'oriented=true',
     ;
     say STDERR "Rotated $id by $meta->{rotate}->{$id}";
 }

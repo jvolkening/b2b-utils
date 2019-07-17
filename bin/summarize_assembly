@@ -6,8 +6,7 @@ use 5.012;
 
 use Getopt::Long;
 use Pod::Usage;
-use List::Util qw/sum max min/;
-use List::MoreUtils qw/uniq/;
+use List::Util qw/sum max min uniq/;
 use BioX::Seq::Stream;
 
 my $PROGRAM = 'summarize_assembly';

@@ -23,7 +23,7 @@ my $singles2_name;
 use constant DSRC_BIN => 'dsrc';
 use constant GZIP_BIN => 'gzip';
 use constant NAME     => 'sync_reads';
-use constant VERSION  => '0.004';
+use constant VERSION  => '0.005';
 
 GetOptions(
 

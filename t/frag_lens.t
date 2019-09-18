@@ -9,6 +9,14 @@ use Test::More;
 use File::Temp qw/tempfile/;
 use File::Compare;
 use File::Temp;
+use File::Which;
+
+# Don't run tests if BWA not installed
+if (! defined which('bwa')) {
+    plan skip_all => "BWA not found so can't test";
+    exit;
+}
+
 
 my $bin     = 'bin/frag_lens';
 my $in_fwd  = 't/test_data/frag_R1.fq';

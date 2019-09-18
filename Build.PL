@@ -18,10 +18,11 @@ my $builder = Module::Build->new(
         'File::Compare' => 0,
     },
     requires => {
-        'BioX::Seq'     => 0,
-        'Bio::TreeIO'   => 0,
-        'Math::SigFigs' => 0,
-        'File::Which'   => 0,
+        'BioX::Seq'       => 0,
+        'Bio::TreeIO'     => 0,
+        'Math::SigFigs'   => 0,
+        'File::Which'     => 0,
+        'List::MoreUtils' => 0,
     },
     meta_merge => {
         resources => {

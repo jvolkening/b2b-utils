@@ -23,6 +23,7 @@ install:
   - conda info -a
   - conda create -q -n test-env python=$TRAVIS_PYTHON_VERSION bwa samtools
   - source activate test-env
+  - cpanm -v Module::Build
 addons:
   apt:
     sources:

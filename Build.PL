@@ -23,6 +23,7 @@ my $builder = Module::Build->new(
         'Math::SigFigs'   => 0,
         'File::Which'     => 0,
         'List::MoreUtils' => 0,
+        'PerlIO::gzip'    => 0,
     },
     meta_merge => {
         resources => {
@@ -30,6 +31,5 @@ my $builder = Module::Build->new(
         }
     },
     add_to_cleanup => [ 'b2b-utils-*' ],
-    create_license => 1,
 );
 $builder->create_build_script;

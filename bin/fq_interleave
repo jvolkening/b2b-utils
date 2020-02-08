@@ -10,28 +10,35 @@ use Pod::Usage;
 use BioX::Seq::Stream;
 
 use constant NAME => 'fq_interleave';
-use constant VERSION => '0.2';
+use constant VERSION => '0.201';
 
 #---------------------------------------------------------------------------#
 # Command line option parsing
 #---------------------------------------------------------------------------#
 
+my $fi_fwd;
+my $fi_rev;
 my $rename = 0;
 my $check  = 0;
 
 my $options_okay = GetOptions(
-    'rename'     => \$rename,
-    'check'      => \$rename,
-    'help'       => sub{ pod2usage(-verbose => 2); },
+    '1=s'    => \$fi_fwd,
+    '2=s'    => \$fi_rev,
+    'rename' => \$rename,
+    'check'  => \$check,
+    'help'   => sub{ pod2usage(-verbose => 2); },
 );
 
 # check that two valid filenames are given
-pod2usage(-msg => 'Error: invalid or missing input filesnames', -verbose => 1)
-    if (@ARGV != 2 || ! -r $ARGV[0] || ! -r $ARGV[1]);
+pod2usage(-msg => 'Error: invalid or missing input filenames', -verbose => 1)
+    if ( ! defined $fi_fwd
+      || ! -r $fi_fwd
+      || ! defined $fi_rev
+      || ! -r $fi_rev
+    );
 
-
-my $parser1 = BioX::Seq::Stream->new($ARGV[0]);
-my $parser2 = BioX::Seq::Stream->new($ARGV[1]);
+my $parser1 = BioX::Seq::Stream->new($fi_fwd);
+my $parser2 = BioX::Seq::Stream->new($fi_rev);
 
 while (my $read1 = $parser1->next_seq) {
 
@@ -87,6 +94,14 @@ FASTQ is sent to STDOUT.
 
 =over 8
 
+=item B<--1>
+
+Name of input file for forward reads (required)
+
+=item B<--2>
+
+Name of input file for reverse reads (required)
+
 =item B<--check>
 
 Check each pair of input reads to make sure names match (slower but more rigorous)
@@ -101,15 +116,16 @@ whitespace or end-of-line is replaced with the corresponding tag above.
 
 =head1 CAVEATS AND BUGS
 
-As yet undiscovered. Please reports bugs by email to the author.
+As yet undiscovered. Please reports bugs to the GitHub repository issue
+tracker.
 
 =head1 AUTHOR
 
-Jeremy Volkening <jeremy *at* base2bio.com>
+Jeremy Volkening <jdv *at* base2bio.com>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014 Jeremy Volkening
+Copyright 2014-2020 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

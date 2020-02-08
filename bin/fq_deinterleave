@@ -1,0 +1,150 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use Fatal qw/open close/;
+use Getopt::Long;
+use PerlIO::gzip;
+use Pod::Usage;
+
+use constant NAME => 'fq_deinterleave';
+use constant VERSION => '0.201';
+
+#---------------------------------------------------------------------------#
+# Command line option parsing
+#---------------------------------------------------------------------------#
+
+my $fo_fwd;
+my $fo_rev;
+my $check     = 0;
+my $no_rename = 0;
+my $force     = 0;
+my $gzip      = 0;
+
+my $options_okay = GetOptions(
+    '1=s'      => \$fo_fwd,
+    '2=s'      => \$fo_rev,
+    'compress' => \$gzip,
+    'check'    => \$check,
+    'norename' => \$no_rename,
+    'force'    => \$force,
+    'help'     => sub{ pod2usage(-verbose => 2); },
+);
+
+# check that two valid filenames are given
+pod2usage(-msg => 'Error: invalid or missing output filenames', -verbose => 1)
+    if (! defined $fo_fwd || ! defined $fo_rev);
+
+die "Output file(s) exist (use --force to overwrite)\n"
+    if (! $force && (-e $fo_fwd || -e $fo_rev));
+
+open my $fh_fwd, ($gzip ? '>:gzip' : '>'), $fo_fwd;
+open my $fh_rev, ($gzip ? '>:gzip' : '>'), $fo_rev;
+
+# read from STDIN
+my $parser = BioX::Seq::Stream->new;
+
+while (my $read1 = $parser->next_seq) {
+
+    my $read2 = $parser->next_seq or die "Read count mismatch";
+    if ($check) {
+
+        my $base1 = $read1->id;
+        $base1 =~ s/(?:\/[12])?(?:\s.+$|$)//;
+        my $base2 = $read2->id;
+        $base2 =~ s/(?:\/[12])?(?:\s.+$|$)//;
+
+        # rename reads unless asked not to
+        if (! $no_rename) {
+            $read1->id = $base1;
+            $read2->id = $base2;
+        }
+
+        die "read pair mismatch ($base1)" if ($base1 ne $base2);
+
+    }
+    print {$fh_fwd} $read1->as_fastq;
+    print {$fh_rev} $read2->as_fastq;
+
+}
+
+exit;
+
+__END__
+
+=head1 NAME
+
+fq_deinterleave - de-interleave paired FASTQ files
+
+=head1 VERSION
+
+This documentation refers to v0.2
+
+=head1 SYNOPSIS
+
+fq_deinterleave [--check] I<reads1> I<reads2> < I<interleaved_reads>
+
+=head1 DESCRIPTION
+
+A simple script to de-interleave (i.e. split) an interleaved FASTQ input into
+two paired FASTQ files. Interleaved data is read from STDIN, and the names of
+the two output files are the two required arguments.
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--1>
+
+Name of output file for forward reads (required)
+
+=item B<--2>
+
+Name of output file for reverse reads (required)
+
+=item B<--check>
+
+Check each pair of input reads to make sure names match (slower but more rigorous)
+
+=item B<--force>
+
+Force overwrite of output files even if they exist
+
+=item B<--norename>
+
+Do not strip /1 and /2 suffixes from read IDs. These are generally added
+during interleaving and should be stripped off, but setting this flag will
+preserve the read IDs exactly.
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+As yet undiscovered. Please reports bugs to the GitHub repository issue
+tracker.
+
+=head1 AUTHOR
+
+Jeremy Volkening <jdv *at* base2bio.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2014-2020 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

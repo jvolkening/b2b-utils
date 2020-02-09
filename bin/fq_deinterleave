@@ -59,8 +59,8 @@ while (my $read1 = $parser->next_seq) {
 
         # rename reads unless asked not to
         if (! $no_rename) {
-            $read1->id = $base1;
-            $read2->id = $base2;
+            $read1->id( $base1 );
+            $read2->id( $base2 );
         }
 
         die "read pair mismatch ($base1)" if ($base1 ne $base2);

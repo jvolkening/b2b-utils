@@ -40,6 +40,8 @@ while (my $line = <$in>) {
 close $in;
 $ret = close $stream;
 ok( $ret, "test $i call succeeded" );
+system("head $out_expected_fwd");
+system("head $out_test_fwd");
 ok( compare($out_test_fwd   => $out_expected_fwd) == 0, "output forward files match" );
 ok( compare($out_test_rev   => $out_expected_rev) == 0, "output reverse files match" );
 

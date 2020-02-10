@@ -6,7 +6,7 @@ use Module::Build;
 
 my $builder = Module::Build->new(
     module_name        => 'b2b-utils',
-    dist_version       => 0.004,
+    dist_version       => 0.005,
     dist_abstract      => 'Utilities from BASE2BIO',
     license            => 'GPL_3',
     dist_author        => q{Jeremy Volkening <jdv@base2bio.com>},

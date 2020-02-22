@@ -30,7 +30,7 @@ my $bg_bin_figs    = 0;
 my $verbose        = 0;
 
 my $PROGRAM = 'bam2consensus';
-my $VERSION = 0.003;
+my $VERSION = 0.004;
 
 GetOptions(
 
@@ -85,20 +85,21 @@ my @errors;
 my @lines = () if (defined $fn_table);
 
 my %iupac = (
-    A   => 'A',
-    C   => 'C',
-    G   => 'G',
-    T   => 'T',
-    AG  => 'R',
-    CT  => 'Y',
-    CG  => 'S',
-    AT  => 'W',
-    GT  => 'K',
-    AC  => 'M',
-    CGT => 'B',
-    AGT => 'D',
-    ACT => 'H',
-    ACG => 'V',
+    A    => 'A',
+    C    => 'C',
+    G    => 'G',
+    T    => 'T',
+    AG   => 'R',
+    CT   => 'Y',
+    CG   => 'S',
+    AT   => 'W',
+    GT   => 'K',
+    AC   => 'M',
+    CGT  => 'B',
+    AGT  => 'D',
+    ACT  => 'H',
+    ACG  => 'V',
+    ACGT => 'N',
 );
 
 my @consensi;

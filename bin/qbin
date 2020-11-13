@@ -1,0 +1,195 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+use Pod::Usage;
+
+use constant LOWER => 33;
+use constant UPPER => 90;
+
+my $binning_schemes = {
+    illumina => {
+        40 => 40,
+        35 => 37,
+        30 => 33,
+        25 => 27,
+        20 => 22,
+        10 => 15,
+        2  => 6,
+        0  => 0,
+    },
+    gatk => {
+        33 => 40,
+        23 => 30,
+        13 => 20,
+        3  => 10,
+        0  => 0,
+    },
+};
+
+my $NAME = 'qbin';
+my $VERSION = '0.001';
+
+my $fi_fasta;
+my $fo_fasta;
+my $bin_scheme = 'illumina';
+
+GetOptions(
+    'in=s'     => \$fi_fasta,
+    'out=s'    => \$fo_fasta,
+    'scheme=s' => \$bin_scheme,
+    'help'     => sub{ pod2usage( -verbose => 2 ) },
+    'version'  => sub{ print "This is $NAME v$VERSION\n" and exit },
+) or pod2usage(
+    -msg => 'Syntax error: please check your command',
+    -verbose => 1
+);
+
+# validate scheme 
+if (! defined $binning_schemes->{$bin_scheme}) {
+    die "Invalid binning scheme: $bin_scheme\n";
+}
+
+# build quality character mapping
+my $input_str  = join '', map {chr $_} LOWER..UPPER;
+my $output_str = join '', map {chr bin($_)} LOWER..UPPER;
+
+my $fh_out = \*STDOUT;
+if (defined $fo_fasta) {
+    open $fh_out, '>', $fo_fasta;
+}
+
+# apply character mappings to each sequence quality string
+my $p = BioX::Seq::Stream->new($fi_fasta); # if undef, reads from STDIN
+while (my $seq = $p->next_seq) {
+    my $q = $seq->qual;
+    eval "\$q =~ tr/\Q$input_str\E/\Q$output_str\E/";
+    $seq->qual = $q;
+    print {$fh_out} $seq->as_fastq;
+}
+
+sub bin {
+
+    my ($q) = @_;
+
+    $q -= LOWER;
+
+    my $scheme = $binning_schemes->{$bin_scheme};
+    my @thresholds = sort {$b <=> $a} keys %$scheme;
+
+    for my $t (@thresholds) {
+        return $scheme->{$t} + LOWER
+            if ($q >= $t);
+    }
+
+    # should never get here
+    die "Passed quality value ($q) outside the expected range";
+
+}
+
+__END__
+
+=head1 NAME
+
+qbin - bin FASTQ quality scores to reduce file size
+
+=head1 SYNOPSIS
+
+qbin --scheme <bin_scheme> < in.fq > out.fq
+
+=head1 DESCRIPTION
+
+This program takes a FASTQ file, transforms the quality scores for each
+sequence into their binned equivalents, and writes the transformed FASTQ
+entries.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--in> I<filename>
+
+Path to FASTQ input file. If not given, input will be read from STDIN.
+
+=item B<--out> I<filename>
+
+Path to FASTQ output file. If not given, output will be written to STDOUT.
+
+=item B<--scheme> I<scheme>
+
+The binning scheme to use. Currently two presets are supported:
+
+B<illumina> -- Puts quality scores into one of eight bins:
+
+>= 40 : 40
+
+35-39 : 37
+
+30-34 : 33
+
+25-29 : 27
+
+20-24 : 22
+
+10-19 : 15
+
+2-9 : 6
+
+0-1 : 0
+
+B<gatk> -- Puts quality scores into one of four bins (these were deduced from
+various Broad Institute documents but are not guaranteed to be the same as
+those used by GATK):
+
+>= 33 : 40
+
+23-32 : 30
+
+13-22 : 20
+
+3-12 : 10
+
+0-2 : 0
+
+=item B<--help>
+
+Display this usage page
+
+=item B<--version>
+
+Print version information
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Currently unknown. Please submit bug reports to the author.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy.volkening@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2020 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

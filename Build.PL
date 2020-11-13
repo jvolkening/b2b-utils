@@ -6,10 +6,10 @@ use Module::Build;
 
 my $builder = Module::Build->new(
     module_name        => 'b2b-utils',
-    dist_version       => 0.005,
-    dist_abstract      => 'Utilities from BASE2BIO',
+    dist_version       => 0.006,
+    dist_abstract      => 'Utilities from BASE2BIO LLC',
     license            => 'GPL_3',
-    dist_author        => q{Jeremy Volkening <jdv@base2bio.com>},
+    dist_author        => q{Jeremy Volkening <jeremy.volkening@base2bio.com>},
     configure_requires => {
         'Module::Build' => 0,
     },

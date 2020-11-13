@@ -11,6 +11,7 @@ bin/fq_interleave
 bin/frag_lens
 bin/gb2fasta
 bin/ncbi_blast_update
+bin/qbin
 bin/rm_chim
 bin/rm_gaps
 bin/seq_diff
@@ -30,6 +31,7 @@ t/fq_deinterleave.t
 t/fq_interleave.t
 t/frag_lens.t
 t/pod.t
+t/qbin.t
 t/rm_chim.t
 t/rm_gaps.t
 t/seq_diff.t
@@ -65,6 +67,8 @@ t/test_data/test.rmgap.1.0.fa
 t/test_data/test.rmgap.1.50.fa
 t/test_data/test.rmgap.100.50.fa
 t/test_data/test_R1.fq
+t/test_data/test_R1.gatk.fq
+t/test_data/test_R1.illumina.fq
 t/test_data/test_R1.singles.fq
 t/test_data/test_R1.sync.fq
 t/test_data/test_R2.fq

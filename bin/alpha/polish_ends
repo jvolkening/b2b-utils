@@ -1,0 +1,260 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use File::Temp;
+use File::Which qw/which/;
+use Getopt::Long;
+use Pod::Usage;
+
+#-inputs---------------------------------------------------------------------#
+my $fasta;
+my $ref;
+#-knobs----------------------------------------------------------------------#
+my $threads      = 1;
+my $min_ident    = 0.0;
+my $fill_ends    = 0;
+my $trim_ends    = 0;
+my $max_gap_ratio = 9999;
+
+my $PROGRAM = 'polish_ends';
+my $VERSION = 0.001;
+
+GetOptions(
+    #-inputs-----------------------------------------------------------------#
+    'in=s'  => \$fasta,
+    'ref=s' => \$ref,
+    #-knobs------------------------------------------------------------------#
+    'threads=i'       => \$threads,
+    'min_ident=f'     => \$min_ident,
+    'max_gap_ratio=f' => \$max_gap_ratio,
+    'trim_ends'       => \$trim_ends,
+    'fill_ends'       => \$fill_ends,
+    #-feedback---------------------------------------------------------------#
+    'help'        => sub{ pod2usage(-verbose => 2); },
+    'version'     => sub{ say "This is $PROGRAM v$VERSION";exit; },
+) or pod2usage( -verbose => 1);
+
+my $tmp_cat = File::Temp->new(UNLINK => 1, SUFFIX => '.fa');
+
+if (! $fill_ends && ! $trim_ends) {
+    die "Must specify at least one of --trim_ends or --fill_ends";
+}
+
+my $MAFFT = which('mafft')
+    // die "MAFFT is required but not found\n";
+
+my $p_ref = BioX::Seq::Stream->new($ref)
+    or die "Error opening reference: $@";
+my $p_in  = BioX::Seq::Stream->new($fasta)
+    or die "Error opening input: $@";
+while (my $seq = $p_ref->next_seq) {
+    print {$tmp_cat} $seq->as_fasta;
+}
+while (my $seq = $p_in->next_seq) {
+    print {$tmp_cat} $seq->as_fasta;
+}
+close $tmp_cat; 
+
+open my $stream, '-|',
+    $MAFFT,
+    '--thread' => $threads,
+    '--auto',
+    '--adjustdirection',
+    $tmp_cat;
+
+# read in and process aligned sequences
+my $p_aln = BioX::Seq::Stream->new($stream);
+my $ref_aln = $p_aln->next_seq;
+my $in_aln  = $p_aln->next_seq;
+my $n_matched;
+my $n_total;
+my $n_gaps;
+
+POS:
+for my $p (0..(length($ref_aln)-1)) {
+    my $b1 = substr $ref_aln, $p, 1;
+    my $b2 = substr $in_aln, $p, 1;
+    if ($b1 eq '-' || $b2 eq '-') {
+        ++$n_gaps;
+        next POS;
+    }
+    ++$n_total;
+    if (uc $b1 eq uc $b2) {
+        ++$n_matched;
+    }
+}
+
+if ($n_gaps/$n_total > $max_gap_ratio) {
+    die "Gap fraction exceeded maximum allowed";
+}
+if ($n_matched/$n_total < $min_ident) {
+    die "Identity did not reach minimum threshold";
+}
+
+# fill first, since it won't change the sequence length
+if ($fill_ends) {
+    if ($in_aln =~ /^(\-+)/) {
+        my $old = $1;
+        my $new = 'N' x length($1);
+        $in_aln->seq =~ s/^$old/$new/;
+    }
+    if ($in_aln =~ /(\-+)$/) {
+        my $old = $1;
+        my $new = 'N' x length($1);
+        $in_aln->seq =~ s/$old$/$new/;
+    }
+}
+
+if ($trim_ends) {
+    
+    if ($ref_aln =~ /(\-+)$/) {
+        my $n_trim = length $1;
+        substr $in_aln->seq, $-[0], $n_trim, '';
+    }
+    if ($ref_aln =~ /^(\-+)/) {
+        my $n_trim = length $1;
+        substr $in_aln->seq, $-[0], $n_trim, '';
+    }
+
+}
+
+$in_aln->seq =~ s/-//g;
+
+print $in_aln->as_fasta;
+
+
+__END__
+
+=head1 NAME
+
+polish_ends - Modify the ends of a contig/scaffold to match those of a
+reference sequence
+
+=head1 SYNOPSIS
+
+polish_ends --ref <ref.fa> --in <assembly.fa> [options] > polished.fa
+
+=head1 DESCRIPTION
+
+Sequencing of small genomes such as viruses can reliably produce a nearly-full
+single-contig consensus, but the ends are often either under-represented or
+contain chimeric extensions. This program will fill (with Ns) and/or trim the
+ends of a single-contig assembly to match those of a reference sequence.
+
+=head1 PREREQUISITES
+
+Requires the following non-core Perl libraries:
+
+=over 1
+
+=item * BioX::Seq
+
+=item * File::Which
+
+=back
+
+as well as the following binaries:
+
+=over 1
+
+=item * mafft
+
+=back
+
+=head1 OPTIONS
+
+=head2 Inputs
+
+=over 4
+
+=item B<--in> I<filename>
+
+Path to assembly in FASTA format
+
+=item B<--ref> I<filename>
+
+Path to reference sequence in FASTA format
+
+=back
+
+=head2 Configuration 
+
+=over 4
+
+    'threads=i'       => \$threads,
+    'min_ident=f'     => \$min_ident,
+    'max_gap_ratio=f' => \$max_gap_ratio,
+    'trim_ends'       => \$trim_ends,
+    'fill_ends'       => \$fill_ends,
+
+=item B<--trim_ends>
+
+If given, ends of the input sequence that extend past those of the reference
+are removed
+
+=item B<--fill_ends>
+
+If given, gaps at the ends of the input sequence relative to the reference are
+filled with Ns
+
+=item B<--min_ident>
+
+Of all non-gap positions, at least this fraction must match. Otherwise, an
+error is thrown. [default: 0.0]
+
+=item B<--max_gap_ratio>
+
+The ratio of gap positions to non-gap positions must not be any higher than
+this value or an error will be thrown. [default: 9999]
+
+=item B<--threads>
+
+Number of threads to use for alignment
+
+=back
+
+=head2 Other 
+
+=over 4
+
+=item B<--version>
+
+Print the program version and exit
+
+=item B<--help>
+
+Print this usage message and exit
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy.volkening@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2020 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

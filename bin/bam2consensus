@@ -354,14 +354,14 @@ sub handle_entry {
         # handle insertions
         my %inserts;
         my $insert_count = 0;
-        while ($read_string =~ /\+(\d+)((??{"[ATGCNatgcnRYSWKMBDHVryswkmbdhv]{$^N}"}))/g) {
+        while ($read_string =~ /\+(\d+)((??{"[ATGCNatgcnRYSWKMBDHVryswkmbdhv-]{$^N}"}))/g) {
             $inserts{$2} += 1;
             ++$insert_count;
         }
 
         # ...and strip extra characters
         $read_string =~ s/\^.//g;
-        $read_string =~ s/[\+\-](\d+)(??{"[ATGCNatgcnRYSWKMBDHVryswkmbdhv]{$^N}"})//g;
+        $read_string =~ s/[\+\-](\d+)(??{"[ATGCNatgcnRYSWKMBDHVryswkmbdhv-]{$^N}"})//g;
         $read_string =~ s/[^\.\,\w\*]//g;
     
         # simple parse check

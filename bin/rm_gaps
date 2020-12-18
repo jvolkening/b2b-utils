@@ -10,15 +10,19 @@ use Pod::Usage;
 
 my $cutoff     = 0.1;
 my $min_island = 1;
+my $rm_unknown = 0;
+my $fn_blocks;
 
 my $PROGRAM = 'rm_gaps';
 my $VERSION = 0.002;
 
 GetOptions(
-    'cutoff=f'  => \$cutoff,
-    'min_len=i' => \$min_island,
-    'help'      => sub{ pod2usage(-verbose => 2); },
-    'version'   => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+    'cutoff=f'       => \$cutoff,
+    'min_len=i'      => \$min_island,
+    'remove_unknown' => \$rm_unknown,
+    'blocks=s'       => \$fn_blocks,
+    'help'           => sub{ pod2usage(-verbose => 2); },
+    'version'        => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
 
 ) or pod2usage( -verbose => 1);
 
@@ -45,14 +49,19 @@ for my $pos (0..$len-1) {
     my $total_count = 0;
     my $gap_count   = 0;
     my @bases = map {substr $old_seqs{$_}, $pos, 1} @ordered;
-    my $gap_frac = scalar( grep {$_ eq '-' } @bases ) / scalar (@bases);
+    my $rmstr = $rm_unknown
+        ? '[-N]'
+        : '[-]'
+    ;
+    my $gap_frac = scalar( grep {$_ =~ /$rmstr/i } @bases ) / scalar (@bases);
     if ($gap_frac <= $cutoff) {
-        push @curr_island, [@bases];
+        push @curr_island, [@bases,$pos+1];
         next POS;
     }
 
     # else, if failed cutoff, break current island and skip
-    push @islands, [@curr_island] if (scalar @curr_island >= $min_island);
+    push @islands, [@curr_island]
+        if (scalar @curr_island >= $min_island);
     @curr_island = ();
 
 }
@@ -65,12 +74,46 @@ for my $seq (0..$#ordered) {
     my $new = BioX::Seq->new('', $ordered[$seq]);
     my $str = '';
     for my $i (@islands) {
-        for my $s (@{ $i }) {
-            $str .= $s->[$seq];
+        for my $col (@{ $i }) {
+            $str .= $col->[$seq];
         }
     }
     $new->seq($str);
     print $new->as_fasta;
+}
+
+# print out block table if requested
+if (defined $fn_blocks) {
+    my $total = 0;
+    my $start_pos;
+    my $end_pos;
+    open my $out, '>', $fn_blocks;
+    for my $i (@islands) {
+        for my $col (@{ $i }) {
+            my $pos = $col->[-1];
+            $start_pos //= $pos;
+            $end_pos   //= $pos;
+            if ($pos-1 > $end_pos) {
+                say {$out} join "\t",
+                    $start_pos,
+                    $end_pos,
+                ;
+                $total += ($end_pos-$start_pos+1);
+                $start_pos = $pos;
+                $end_pos   = $pos;
+            }
+            else {
+                $end_pos = $pos;
+            }
+        }
+    }
+    say {$out} join "\t",
+        $start_pos,
+        $end_pos,
+    ;
+    $total += ($end_pos-$start_pos+1);
+    say STDERR "Total trimmed length: $total";
+    close $out;
 }
 
 __END__
@@ -114,6 +157,22 @@ Minimum length of a sequence "island" (that is, the region between "gappy"
 columns) to be output. Islands shorter than this will be discarded. This
 option can be used to filter out short aligned positions (e.g. 1 or several
 nucleotides long) within otherwise poorly aligned regions. (default: 1)
+j
+=item B<--remove_unknown>
+
+If given, unknown bases ('N') will be treated the same as gaps for the purpose
+of cutoff calculations. In other words, the B<--cutoff> threshold will refer
+to the minimum number of bases that are I<either> gaps or unknowns in order to
+quality for removal.
+
+=item B<--blocks> I<filename>
+
+If given, a tab-delimited outfile will be written to the specified filename
+containing two columns. Each row represents a block of positions relative to
+the input alignment that are preserved in the trimmed output. The first row is
+the start coordinate of a block, and the second row contains the end
+coordinate. This is used by some downstream software to map positions between
+the stripped and unstripped alignments.
 
 =back
 

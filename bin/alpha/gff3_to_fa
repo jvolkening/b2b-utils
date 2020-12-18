@@ -12,24 +12,44 @@ use List::Util qw/any/;
 use BioX::Seq::Fetch;
 
 use constant NAME => 'gff3_to_fa';
-use constant VERSION => '0.004';
+use constant VERSION => '0.010';
+
+my $transcript_types = qr/^(?:
+    mRNA |
+    tRNA |
+    antisense_lncRNA |
+    lnc_RNA |
+    transcript_region |
+    antisense_RNA |
+    snoRNA |
+    ncRNA |
+    snRNA |
+    rRNA
+)$/x;
 
 my $fn_fasta;
 my $fn_gff3;
 my $fn_vcf;
 my $output_type;
+my $phase_shift = 0;
 my $verbose;
+my $protein_coding = 0;
+my $translate_all = 0;
+
 
 # Collect command-line parameters
 my $err_msg = 'Syntax error: please check your syntax';
 pod2usage( -msg => $err_msg, -verbose => 1) if
     ( ! GetOptions(
-        'fasta=s'  => \$fn_fasta,
-        'gff3=s'   => \$fn_gff3,
-        'vcf=s'    => \$fn_vcf,
-        'type=s'   => \$output_type,
-        'verbose'  => \$verbose,
-        'help'     => sub { pod2usage( -verbose => 2 ); },
+        'fasta=s'        => \$fn_fasta,
+        'gff3=s'         => \$fn_gff3,
+        'vcf=s'          => \$fn_vcf,
+        'type=s'         => \$output_type,
+        'phase_shift'    => \$phase_shift,
+        'translate_all'  => \$translate_all,
+        'protein_coding' => \$protein_coding,
+        'verbose'        => \$verbose,
+        'help'           => sub { pod2usage( -verbose => 2 ); },
     )
 );
 
@@ -37,7 +57,12 @@ if (! $output_type) {
     warn "No type supplied, defaulting to \"CDS\"\n";
     $output_type = 'CDS';
 }
+
 $output_type = lc $output_type;
+$protein_coding = 1
+    if ($output_type eq 'protein');
+
+
 die "Can't open GFF file for reading"
     if (! -r $fn_gff3);
 die "Can't open FASTA file for reading"
@@ -71,7 +96,7 @@ while (my $line = <$gff3>) {
         $annot_string
     ) = split "\t", $line;
 
-    process_struct(\%struct) if (defined $curr_chr && $curr_chr ne $chr);
+    process_struct() if (defined $curr_chr && $curr_chr ne $chr);
     $curr_chr = $chr;
 
     $strand = $strand eq '-' ? -1 : 1; #make strand amenable to arithmetic
@@ -84,24 +109,25 @@ while (my $line = <$gff3>) {
         $annots{$tag} = [@vals];
     }
     for ($type) {
-        if (/^gene$/) {
+        if (/gene$/) {
             my $id = $annots{ID}->[0];
+            if ($protein_coding) {
+                my $gtype = $annots{gene_biotype}->[0] // $annots{locus_type}->[0];
+                die "No protein-coding information found: "
+                  . "cannot filter protein-coding genes only\n"
+                    if (! $translate_all && ! defined $gtype);
+                $struct{$id}->{protein_coding}
+                    = $translate_all ? 1
+                    : $gtype eq 'protein_coding' ?  1
+                    : 0;
+            }
+                
             die "missing ID" if (! defined $id);
             ++$gene_count;
             $struct{$id}->{strand} = $strand;
             $struct{$id}->{start}  = $start;
             $struct{$id}->{end}    = $end;
-        }
-        elsif (/^(transcript|mRNA)$/) {
-            last if ($output_type eq 'gene');
-            my $id     = $annots{ID}->[0];
-            my $parent = $annots{Parent}->[0];
-            die "missing ID"     if (! defined $id);
-            die "missing parent" if (! defined $parent);
-            die "transcript parent missing" if (! exists $struct{$parent});
-            $struct{$parent}->{transcripts}->{$id}->{cds}   = [];
-            $struct{$parent}->{transcripts}->{$id}->{exons} = [];
-            $map{$id} = $parent;
+            $struct{$id}->{chr}    = $chr;
         }
         elsif (/^CDS$/) {
             last if ($output_type ne 'cds' && $output_type ne 'protein');
@@ -127,19 +153,35 @@ while (my $line = <$gff3>) {
                     [$start, $end, $phase];
             }
         }
+        elsif (/$transcript_types/) {
+            last if ($output_type eq 'gene');
+            my $id     = $annots{ID}->[0];
+            my $parent = $annots{Parent}->[0];
+            die "missing ID"     if (! defined $id);
+
+            # ignore non-transcript types
+            die "missing parent" if (! defined $parent);
+            die "parent struct not found" if (! exists $struct{$parent});
+
+            $struct{$parent}->{transcripts}->{$id}->{cds}   = [];
+            $struct{$parent}->{transcripts}->{$id}->{exons} = [];
+            $map{$id} = $parent;
+        }
     }
 }
 
-process_struct(\%struct) if (%struct); #process last chunk
+process_struct() if (%struct); #process last chunk
 
 
 
 sub process_struct {
 
-    my $chr_ref = shift;
+    my $chr_ref = \%struct;
+    GENE:
     for my $gene_id (keys %$chr_ref) {
         my $gene_ref = $chr_ref->{$gene_id};
         my $strand = $gene_ref->{strand};
+        next GENE if ($protein_coding && ! $gene_ref->{protein_coding});
         if ($output_type eq 'gene') {
             my $seq = $fai->fetch_seq(
                 $gene_ref->{chr},
@@ -149,7 +191,7 @@ sub process_struct {
             $seq->id = $gene_id;
             $seq->rev_com if ($strand < 0);
             print $seq->as_fasta;
-            return 1;
+            next GENE;
         }
         my @transcripts = sort {$a cmp $b} keys %{ $gene_ref->{transcripts} };
         TRANSCRIPT:
@@ -173,19 +215,26 @@ sub process_struct {
             $seq->rev_com if ($strand < 0);
 
             if ($output_type eq 'cds') {
-                $seq->desc( "[phase:$phase]" );
+                if ($phase_shift) {
+                    substr $seq->seq, 0, $phase, ''; 
+                }
+                else {
+                    $seq->desc( "[phase:$phase]" );
+                }
             }
 
             if ($output_type eq 'protein') {
                 $seq->translate($phase);
-                $seq->{seq} =~ s/\*.*$// ; # strip stop codon if present
-                warn "truncated protein for $seq->{id}\n" if ($seq =~ /\*/);
+                warn "split protein for $seq->{id}\n" if ($seq =~ /\*(.+)/);
+                $seq->{seq} =~ s/\*$// ;   # strip terminal stop codon if present
+                $seq->{seq} =~ s/\*/X/g ; # mask internal stop codons if present
             }
 
             print $seq->as_fasta;
             next TRANSCRIPT;
         }
     }
+    %struct = ();
 }
 
 
@@ -197,7 +246,7 @@ gff3_to_fa - extracts sequences in FASTA format given a GFF3 file and reference 
 
 =head1 VERSION
 
-This documentation refers to v0.3
+This documentation refers to v0.010
 
 =head1 SYNOPSIS
 
@@ -295,7 +344,7 @@ Jeremy Volkening (jeremy *at* base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014 Jeremy Volkening
+Copyright 2014-2020 Jeremy Volkening
 All rights reserved
 
 This program is free software: you can redistribute it and/or modify

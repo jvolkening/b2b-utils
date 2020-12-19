@@ -7,6 +7,7 @@ perl:
 before_install:
   - cpanm --notest Module::Build
   - cpanm --notest BioX::Seq
+  - cpanm --notest Compress::DSRC
 install:
   - cpanm --quiet BioX::Seq;
   - cpanm --quiet --installdeps --notest .

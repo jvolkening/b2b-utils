@@ -45,6 +45,39 @@ ok( compare($out_test_rev   => $out_expected_rev) == 0, "output reverse files ma
 
 ++$i;
 
+# test --in
+
+@cmd = (
+    $bin,
+    '--1'  => $out_test_fwd,
+    '--2'  => $out_test_rev,
+    '--in' => $in_test,
+    '--force',
+    '--check',
+);
+
+$ret = system @cmd;
+ok( ! $ret, "test $i call succeeded" );
+ok( compare($out_test_fwd   => $out_expected_fwd) == 0, "output forward files match" );
+ok( compare($out_test_rev   => $out_expected_rev) == 0, "output reverse files match" );
+
+++$i;
+
+# test --force
+
+@cmd = (
+    $bin,
+    '--1'  => $out_test_fwd,
+    '--2'  => $out_test_rev,
+    '--in' => $in_test,
+    '--check',
+);
+
+$ret = system @cmd;
+ok( $ret, "test $i call failed to overwrite as expected" );
+
+++$i;
+
 @cmd = (
     $bin,
     '--1' => $out_test_fwd,

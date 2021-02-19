@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use Getopt::Long;
 use Fatal qw/open close/;
@@ -18,14 +19,18 @@ use constant VERSION => '0.201';
 
 my $fi_fwd;
 my $fi_rev;
+my $fo_out;
 my $rename = 0;
 my $check  = 0;
+my $force  = 0;
 
 my $options_okay = GetOptions(
     '1=s'    => \$fi_fwd,
     '2=s'    => \$fi_rev,
+    'out=s'  => \$fo_out,
     'rename' => \$rename,
     'check'  => \$check,
+    'force'  => \$force,
     'help'   => sub{ pod2usage(-verbose => 2); },
 );
 
@@ -37,8 +42,16 @@ pod2usage(-msg => 'Error: invalid or missing input filenames', -verbose => 1)
       || ! -r $fi_rev
     );
 
+die "Output file exists (use --force to overwrite)\n"
+    if (defined $fo_out && ! $force && (-e $fo_out));
+
 my $parser1 = BioX::Seq::Stream->new($fi_fwd);
 my $parser2 = BioX::Seq::Stream->new($fi_rev);
+
+my $fh_out = \*STDOUT;
+if (defined $fo_out) {
+    open $fh_out, '>', $fo_out;
+}
 
 while (my $read1 = $parser1->next_seq) {
 
@@ -60,11 +73,15 @@ while (my $read1 = $parser1->next_seq) {
         }
 
     }
-    print $read1->as_fastq, $read2->as_fastq;
+    print {$fh_out} $read1->as_fastq, $read2->as_fastq;
 
 }
 
 die "Read count mismatch" if ($parser2->next_seq); # should be at end
+
+if (defined $fo_out) {
+    close $fh_out;
+}
 
 exit;
 
@@ -111,6 +128,14 @@ Check each pair of input reads to make sure names match (slower but more rigorou
 Renames forward and reverse reads to follow the ".../1" and .../2" naming
 convention (required for some programs). Everything at and after the first
 whitespace or end-of-line is replaced with the corresponding tag above.
+
+=item B<--out>
+
+Name of output file to write to (instead of the default STDOUT)
+
+=item B<--force>
+
+Force overwrite of output file even if it exists
 
 =back
 

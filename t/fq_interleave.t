@@ -46,6 +46,37 @@ ok( compare($out_expected   => $out_test) == 0, "output files match" );
 
 ++$i;
 
+# test --out
+@cmd = (
+    $bin,
+    '--1'   => $in_fwd,
+    '--2'   => $in_rev,
+    '--out' => $out_test,
+    '--force',
+    '--check',
+);
+
+$ret = system @cmd;
+ok(! $ret, "test $i call succeeded" );
+ok( compare($out_expected   => $out_test) == 0, "output files match" );
+
+++$i;
+
+# test --force
+@cmd = (
+    $bin,
+    '--1'   => $in_fwd,
+    '--2'   => $in_rev,
+    '--out' => $out_test,
+    '--check',
+);
+
+$ret = system @cmd;
+ok($ret, "test $i failed to overwrite as expected" );
+ok( compare($out_expected   => $out_test) == 0, "output files match" );
+
+++$i;
+
 @cmd = (
     $bin,
     '--1' => $in_fwd,

@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use BioX::Seq::Stream;
 use Fatal qw/open close/;
@@ -17,6 +18,7 @@ use constant VERSION => '0.201';
 # Command line option parsing
 #---------------------------------------------------------------------------#
 
+my $fi_in;
 my $fo_fwd;
 my $fo_rev;
 my $check     = 0;
@@ -27,6 +29,7 @@ my $gzip      = 0;
 my $options_okay = GetOptions(
     '1=s'      => \$fo_fwd,
     '2=s'      => \$fo_rev,
+    'in=s'     => \$fi_in,
     'compress' => \$gzip,
     'check'    => \$check,
     'norename' => \$no_rename,
@@ -44,8 +47,8 @@ die "Output file(s) exist (use --force to overwrite)\n"
 open my $fh_fwd, ($gzip ? '>:gzip' : '>'), $fo_fwd;
 open my $fh_rev, ($gzip ? '>:gzip' : '>'), $fo_rev;
 
-# read from STDIN
-my $parser = BioX::Seq::Stream->new;
+# read from specified file (or STDIN if $fi_in is undefined)
+my $parser = BioX::Seq::Stream->new($fi_in);
 
 while (my $read1 = $parser->next_seq) {
 
@@ -104,6 +107,10 @@ Name of output file for forward reads (required)
 =item B<--2>
 
 Name of output file for reverse reads (required)
+
+=item B<--in>
+
+Name of input file to read from (instead of default STDIN)
 
 =item B<--check>
 

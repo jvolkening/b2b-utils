@@ -53,6 +53,8 @@ if (defined $fo_out) {
     open $fh_out, '>', $fo_out;
 }
 
+my $checked_identical = 0;
+
 while (my $read1 = $parser1->next_seq) {
 
     my $read2 = $parser2->next_seq or die "Read count mismatch";
@@ -72,6 +74,14 @@ while (my $read1 = $parser1->next_seq) {
             $read2->id( $base2 . '/2' );
         }
 
+    }
+    if (! $checked_identical) {
+        my $seq1 = uc $read1->seq;
+        my $seq2 = uc $read2->seq;
+        if ($seq1 eq $seq2) {
+            die "paired reads are identical -- did you accidentally specify the same input file twice?";
+        }
+        $checked_identical = 1;
     }
     print {$fh_out} $read1->as_fastq, $read2->as_fastq;
 

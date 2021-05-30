@@ -17,6 +17,7 @@ bin/rm_gaps
 bin/seq_diff
 bin/summarize_assembly
 bin/sync_reads
+bin/minimeta
 Build.PL
 LICENSE
 MANIFEST			This list of files
@@ -37,6 +38,7 @@ t/rm_gaps.t
 t/seq_diff.t
 t/summarize_assembly.t
 t/sync_reads.t
+t/minimeta.t
 t/test_data/b2c.bam
 t/test_data/b2c.mod.fa
 t/test_data/b2c.mod.fa.fai
@@ -74,3 +76,5 @@ t/test_data/test_R1.sync.fq
 t/test_data/test_R2.fq
 t/test_data/test_R2.singles.fq
 t/test_data/test_R2.sync.fq
+t/test_data/minimeta.out.fa
+t/test_data/nanopore.fq.gz

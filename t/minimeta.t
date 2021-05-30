@@ -20,7 +20,7 @@ for (qw/minimap2 miniasm racon medaka_consensus/) {
 
 
 my $bin     = 'bin/minimeta';
-my $in_fa  = 't/test_data/nanopore.fa.gz';
+my $in_fa  = 't/test_data/nanopore.fq.gz';
 my $cmp_fa   = 't/test_data/minimeta.out.fa';
 my $out_fa   = File::Temp->new(UNLINK => 1);
 

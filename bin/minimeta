@@ -1,0 +1,408 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use BioX::Seq::Stream;
+use Cwd qw/abs_path getcwd/;
+use File::Basename qw/basename/;
+use File::Temp;
+use Getopt::Long;
+use IPC::Cmd qw/can_run run/;
+use Pod::Usage;
+
+#-inputs---------------------------------------------------------------------#
+my $fi_reads;
+#-outputs--------------------------------------------------------------------#
+my $fo_consensus;
+#-knobs----------------------------------------------------------------------#
+my $threads = 1;
+my $n_racon = 3;
+my $n_medaka = 1;
+my $quiet    = 0;
+my $min_cov  = 2;
+
+my $PROGRAM = 'minimeta';
+my $VERSION = 0.001;
+
+GetOptions(
+
+    #-inputs-----------------------------------------------------------------#
+    'in=s' => \$fi_reads,
+    #-outputs----------------------------------------------------------------#
+    'out=s' => \$fo_consensus,
+    #-knobs------------------------------------------------------------------#
+    'threads=i'     => \$threads,
+    'n_racon=i'     => \$n_racon,
+    'n_medaka=i'    => \$n_medaka,
+    'min_cov=i'     => \$min_cov,,
+    'quiet'         => \$quiet,
+    'help'          => sub{ pod2usage(-verbose => 2); },
+    'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+
+) or pod2usage( -verbose => 1);
+
+# check for required software
+my $MINIMAP2 = can_run('minimap2')
+    // die "Minimap2 is required but not found\n";
+my $MINIASM = can_run('miniasm')
+    // die "Miniasm is required but not found\n";
+my $RACON = can_run('racon')
+    // die "Racon is required but not found\n";
+my $MEDAKA = can_run('medaka_consensus')
+    // die "Medaka is required but not found\n";
+my $AWK = can_run('awk')
+    // die "Awk is required but not found\n";
+my $FOLD = can_run('fold')
+    // die "Fold is required but not found\n";
+
+# globals
+
+die "Must define existing input file (--in)\n"
+    if (! defined $fi_reads || ! -r $fi_reads);
+$fi_reads = abs_path($fi_reads);
+
+if (defined $fo_consensus) {
+    $fo_consensus = abs_path($fo_consensus);
+}
+
+# work in scratch space
+my $init_dir = abs_path(getcwd());
+my $in_base = basename($fi_reads);
+my $wd =  File::Temp->newdir(CLEANUP => 0,DIR => "$ENV{HOME}/.tmp");
+chdir $wd;
+symlink $fi_reads, $in_base;
+
+# initial assembly
+plog( 'assembly', 'Initial assembly with miniasm' );
+my $ts = time;
+map_ava( $in_base, 'init.paf' );
+miniasm( $in_base, 'init.paf', 'init.fa' );
+my $el = time - $ts;
+plog( 'assembly', "Assembly took $el s" );
+
+# racon polishing
+my $curr_cons = 'init.fa';
+plog( 'racon', "Polishing with racon ($n_racon rounds total)" );
+for my $i (1..$n_racon) {
+    my $new_cons = "rc$i.fa";
+
+    my $ts = time;
+    polish_racon( $in_base, $curr_cons, $new_cons);
+    my $el = time - $ts;
+    plog( 'racon', "Round took $el s" );
+
+    $curr_cons = $new_cons;
+}
+
+# medaka polishing
+plog( 'medaka', "Polishing with medaka ($n_medaka rounds total)" );
+for my $i (1..$n_medaka) {
+
+    # on final round, write to final output target
+    my $new_cons = $i == $n_medaka
+        ? $fo_consensus
+        : "md$i.fa";
+
+    my $ts = time;
+    polish_medaka( $in_base, $curr_cons, $new_cons);
+    my $el = time - $ts;
+    plog( 'medaka', "Round took $el s" );
+
+    $curr_cons = $new_cons;
+}
+
+# minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
+# racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
+
+chdir $init_dir;
+exit;
+
+# minimap2 -x ava-ont trimmed.fq trimmed.fq > trim.paf
+sub map_ava {
+    
+    my ($fi, $fo) = @_;
+
+    my @cmd = (
+        'minimap2',
+        '-t' => $threads,
+        '-x' => 'ava-ont',
+        '-o' => $fo,
+        $in_base,
+        $in_base,
+    );
+    run( command => \@cmd )
+        or die "Initial AVA mapping failed: $!";
+}
+
+# miniasm -s 200 -c 1 -e 2 -I 0.2 -f trimmed.fq trim.paf | awk '/^S/{print ">"$2" "$4"\n"$3}' | fold > trim.fa
+sub miniasm {
+    
+    my ($fi_reads, $fi_paf, $fo) = @_;
+
+    my @cmd = (
+        'miniasm',
+        '-s' => '200',
+        '-c' => $min_cov,
+        '-I' => '0.2',
+        '-f' => $fi_reads,
+        $fi_paf,
+    );
+    #open my $stream, '-|', @cmd;
+    my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+        = run( command => \@cmd );
+    die "Error running miniasm: $error_message"
+        if (! $success);
+
+    # convert GFA to FASTA
+    open my $out, '>', $fo;
+    # this hack is necessary to process output by line; otherwise buffering can
+    # cause incomplete lines to be processed
+    my $stdout = join '', @{ $stdout_buf};
+    open my $stream, '<', \$stdout;
+    while (my $line = <$stream>) {
+        chomp $line;
+        my @fields = split "\t", $line;
+        next if ($fields[0] ne 'S');
+        print {$out} BioX::Seq->new(
+            $fields[2],
+            $fields[1],
+            $fields[3],
+        )->as_fasta;
+    }
+    close $out;
+    close $stream;
+
+}
+
+sub polish_racon {
+    
+    my ($fi_reads, $fi_cons, $fo_cons) = @_;
+
+    # map reads against existing consensus
+    # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
+    my @cmd_mm = (
+        'minimap2',
+        '-t' => $threads,
+        '-a',
+        '-x' => 'map-ont',
+        '-o' => 'rc.sam',
+        $fi_cons,
+        $fi_reads,
+    );
+    run( command => \@cmd_mm )
+        or die "consensus read mapping failed: $!";
+
+    # call new consensus with Racon
+    # racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
+    my @cmd_rc = (
+        'racon',
+        '--threads'       => $threads,
+        '--match'         => 8,
+        '--mismatch'      => '-6',
+        '--gap'           => '-8',
+        '--window-length' => 500,
+        '--no-trimming',
+        $fi_reads,
+        'rc.sam',
+        $fi_cons
+    );
+    
+    my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+        = run( command => \@cmd_rc );
+    die "Error running racon: $error_message"
+        if (! $success);
+
+    open my $out, '>', $fo_cons;
+    # this hack is necessary to process output by line; otherwise buffering can
+    # cause incomplete lines to be processed
+    my $stdout = join '', @{ $stdout_buf};
+    open my $stream, '<', \$stdout;
+    while (my $line = <$stream>) {
+        print {$out} $line;
+    }
+    close $out;
+    close $stream;
+
+}
+
+# medaka_consensus -i trimmed.fq -d rc2.fa -o polished
+sub polish_medaka {
+
+    my ($fi_reads, $fi_cons, $fo_cons) = @_;
+
+    my @cmd = (
+        'medaka_consensus',
+        '-t' => $threads,
+        '-f',
+        '-i' => $fi_reads,
+        '-d' => $fi_cons,
+        '-o' => 'polished',
+    );
+    run( command => \@cmd )
+        or die "Call to medaka failed: $!";
+
+    # transfer annotations dropped by Medaka
+
+    my $fh_out = \*STDOUT;
+    if (defined $fo_cons) {
+        open my $fh, '>', $fo_cons;
+        $fh_out = $fh;
+    }
+
+    # read annotations from input contigs
+    my %annots;
+    my $p = BioX::Seq::Stream->new($fi_cons);
+    while (my $seq = $p->next_seq) {
+        $annots{$seq->id} = $seq->desc;
+    }
+    # copy annotations to output contigs
+    $p = BioX::Seq::Stream->new('polished/consensus.fasta');
+    while (my $seq = $p->next_seq) {
+        my $tags = $annots{$seq->id}
+            // die "Missing annotations for contig " . $seq->id;
+        my $l = length $seq;
+        $tags =~ s/\bLN:i:\d+\b/LN:i:$l/;
+        $seq->desc = join ' ',
+            grep {defined $_} $seq->desc, $tags;
+        print {$fh_out} $seq->as_fasta;
+    }
+
+}
+
+sub plog {
+
+    my ($unit, $msg) = @_;
+    return if ($quiet);
+    say STDERR "[mm::$unit] $msg";
+
+}
+
+__END__
+
+=head1 NAME
+
+minimeta - assembler for long-read metagenomic/metatranscriptomic data sets
+
+=head1 SYNOPSIS
+
+minimeta --in <reads.fq> --out <consensus.fasta>
+
+=head1 DESCRIPTION
+
+Produced a polished consensus assembly from long-read reads using miniasm,
+racon, and medaka. Software settings are tuned for
+metagenomic/metatranscriptomic assemblies of variable, sometimes low,
+coverage.
+
+=head1 PREREQUISITES
+
+Requires the following non-core Perl libraries:
+
+=over 1
+
+=item * BioX::Seq
+
+=back
+
+as well as the following binaries:
+
+=over 1
+
+=item * minimap2
+
+=item * miniasm
+
+=item * racon
+
+=item * medaka
+
+=item * core *nix utils (awk, fold)
+
+=back
+
+=head1 OPTIONS
+
+=head2 Input (required)
+
+=over 4
+
+=item B<--in> I<filename>
+
+Path to input reads in FASTx format
+
+=back
+
+=head2 Output 
+
+=over 4
+
+=item B<--out>
+
+Path to write consensus sequence to (as FASTA) [default: STDOUT]
+
+=back
+
+=head2 Configuration 
+
+=over 4
+
+=item B<--min_cov>
+
+Minimum read coverage required by assembler to keep position
+
+=item B<--threads>
+
+Number of processsing threads to use for mapping and polishing
+
+=item B<--n_racon>
+
+Number of Racon polishing rounds to perform (default: 3)
+
+=item B<--n_medaka>
+
+Number of Medaka polishing rounds to perform (default: 1)
+
+=item B<--quiet>
+
+Don't write status messages to STDERR
+
+=item B<--help>
+
+Print usage description and exit
+
+=item B<--version>
+
+Print software version and exit
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy.volkening@base2bio.com)
+
+=head1 LICENSE AND COPYRIGHT
+
+Copyright 2021 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut
+

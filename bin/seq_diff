@@ -72,6 +72,28 @@ for my $pos (0..$len-1) {
     }
 }
 
+#handle any remaining diffs
+if (defined $last_start) {
+    
+    # reformat long diff strings
+    for my $last (@lasts) {
+        if (scalar @$last > 1) {
+            my $bps  = grep {$_ ne '-'} @$last;
+            my $gaps = grep {$_ eq '-'} @$last;
+            @$last = ("$gaps gaps, $bps nt");
+        }
+    }
+    say join "\t",
+        $last_start,
+        $last_end,
+        (map {$_->[0]} @lasts),
+        ;
+        $last_start = undef;
+        $last_end   = undef;
+        @lasts = ();
+}
+
+
 exit;
 
 __END__

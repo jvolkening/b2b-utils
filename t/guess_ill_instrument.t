@@ -24,7 +24,15 @@ my %tests = (
         ['iSeq_01.badinst.fq.gz' => 'flowcell'],
     ],
     'MiniSeq' => [
-        ['MiniSeq_01.fq.gz'      => 'flowcell'],
+        ['MiniSeq_01.fq.gz'      => 'both'],
+        ['MiniSeq_02.fq.gz'      => 'both'],
+        ['MiniSeq_03.fq.gz'      => 'flowcell'],
+        ['MiniSeq_04.fq.gz'      => 'both'],
+        ['MiniSeq_05.fq.gz'      => 'flowcell'],
+        ['MiniSeq_06.fq.gz'      => 'flowcell'],
+        ['MiniSeq_07.fq.gz'      => 'both'],
+        ['MiniSeq_08.fq.gz'      => 'flowcell'],
+        ['MiniSeq_09.fq.gz'      => 'flowcell'],
     ],
     'MiSeq' => [
         ['MiSeq_01.fq.gz'        => 'both'],

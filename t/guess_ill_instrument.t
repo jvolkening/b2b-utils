@@ -23,16 +23,19 @@ my %tests = (
         ['iSeq_01.badfc.fq.gz'   => 'instrument'],
         ['iSeq_01.badinst.fq.gz' => 'flowcell'],
     ],
+    'MiniSeq' => [
+        ['MiniSeq_01.fq.gz'      => 'flowcell'],
+    ],
     'NovaSeq 6000' => [
-        ['NovaSeq_01.fq.gz'         => 'both'],
-        ['NovaSeq_02.fq.gz'         => 'flowcell'],
-        ['NovaSeq_03.fq.gz'         => 'both'],
-        ['NovaSeq_04.fq.gz'         => 'both'],
-        ['NovaSeq_05.fq.gz'         => 'both'],
-        ['NovaSeq_06.fq.gz'         => 'both'],
-        ['NovaSeq_07.fq.gz'         => 'both'],
-        ['NovaSeq_08.fq.gz'         => 'both'],
-        ['NovaSeq_09.fq.gz'         => 'both'],
+        ['NovaSeq_01.fq.gz'      => 'both'],
+        ['NovaSeq_02.fq.gz'      => 'flowcell'],
+        ['NovaSeq_03.fq.gz'      => 'both'],
+        ['NovaSeq_04.fq.gz'      => 'both'],
+        ['NovaSeq_05.fq.gz'      => 'both'],
+        ['NovaSeq_06.fq.gz'      => 'both'],
+        ['NovaSeq_07.fq.gz'      => 'both'],
+        ['NovaSeq_08.fq.gz'      => 'both'],
+        ['NovaSeq_09.fq.gz'      => 'both'],
     ],
 );
 

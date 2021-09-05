@@ -1,0 +1,165 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+use List::Util qw/uniq/;
+use Pod::Usage;
+
+my $PROGRAM = 'guess_ill_instrument';
+my $VERSION = 0.001;
+
+# some of these patterns were adapted from those in 'illumina_instrument.py'
+# code from the 10X Genomics 'supernova' software GitHub repository. Others
+# were determined from examining headers of data from known platforms. Note:
+# the sequencing platforms listed in SRA dataset metadata do not appear to be
+# reliable -- likely many users enter this information incorrectly or guess at
+# it.
+
+my @model_patterns = (
+    [qr/^ (HWI-)? M  \d{5} $/x        => ['MiSeq'] ],
+    [qr/^         MN \d{5} $/x        => ['MiniSeq'] ],
+    [qr/^         F  \d{5} $/x        => ['MiniSeq'] ],
+    [qr/^         F  [A-Z\d]{6,9} $/x => ['iSeq'] ],
+    [qr/^         A  \d{5} $/x        => ['NovaSeq 6000'] ],
+    [qr/^         NB \d{6} $/x        => ['NextSeq'] ],
+    [qr/^         NS \d{6} $/x        => ['NextSeq'] ],
+    [qr/^         E  \d{5} $/x        => ['HiSeq X'] ],
+    [qr/^         K  \d{5} $/x        => ['HiSeq 3000', 'HiSeq 4000'] ],
+    [qr/^         J  \d{5} $/x        => ['HiSeq 3000'] ],
+    [qr/^ (HWI-)? D  \d{5} $/x        => ['HiSeq 2500'] ],
+    [qr/^ (HWI-)? C  \d{5} $/x        => ['HiSeq 1500'] ],
+    [qr/^ HWIUSI            /x        => ['GA Ix'] ],
+);
+
+my @flowcell_patterns = (
+    [qr/^ 0{9} - [A-Z\d]{5} $/x          => ['MiSeq'] ],
+    [qr/^ [ABDG] [A-Z\d]{4} $/x          => ['MiSeq'] ], 
+    [qr/^ 000H [A-Z\d]{5} $/x            => ['MiniSeq'] ],
+    [qr/^ B [A-Z]{2} \d{5} - \d{4} $/x  => ['iSeq'] ],
+    [qr/^ H [A-Z\d]{4} DMXX $/x          => ['NovaSeq 6000'] ], #S2
+    [qr/^ H [A-Z\d]{4} DRXX $/x          => ['NovaSeq 6000'] ],
+    [qr/^ H [A-Z\d]{4} DSXX $/x          => ['NovaSeq 6000'] ], #S4
+    [qr/^ H [A-Z\d]{4} DSXY $/x          => ['NovaSeq 6000'] ],
+    [qr/^ H [A-Z\d]{4} MCVY $/x          => ['NovaSeq 6000'] ], #S2
+    [qr/^ C [A-Z\d]{4} A[CN]XX $/x       => ['HiSeq 1000', 'HiSeq 1500', 'HiSeq 2000', 'HiSeq 2500'] ],
+    [qr/^ H [A-Z\d]{4} (AD|BC)X[XY] $/x  => ['HiSeq 1500', 'HiSeq 2500'] ],
+    [qr/^ H [A-Z\d]{4} BBX[XY] $/x       => ['HiSeq 4000'] ],
+    [qr/^ H [A-Z\d]{4} (CC|AL)X[XY] $/x  => ['HiSeq X'] ],
+    [qr/^ H [A-Z\d]{4} (BG|AF)X[XY2] $/x => ['NextSeq'] ],
+);
+
+# read in header fields of first sequence
+my $p = BioX::Seq::Stream->new($ARGV[0]); # can be undefined for STDIN
+my $seq = $p->next_seq;
+my (
+    $inst,
+    $run,
+    $fc,
+    $lane,
+    $tile,
+    $x,
+    $y,
+    @other
+) = split ':', $seq->id;
+
+my @inst_cand;
+my @fc_cand;
+
+for my $pattern (@model_patterns) {
+    my ($regex, $models) = @{ $pattern };
+    if ($inst =~ /$regex/) {
+        push @inst_cand, @{ $models };
+    }
+}
+for my $pattern (@flowcell_patterns) {
+    my ($regex, $models) = @{ $pattern };
+    if ($fc =~ /$regex/) {
+        push @fc_cand, @{ $models };
+    }
+}
+
+@inst_cand = uniq @inst_cand;
+@fc_cand = uniq @fc_cand;
+
+my @res = intersection(\@inst_cand, \@fc_cand);
+if (scalar @res) {
+    say join "\t", @res, 'both';
+}
+elsif (! scalar @inst_cand) {
+    say join "\t", "@fc_cand", 'flowcell';
+}
+elsif (! scalar @fc_cand) {
+    say join "\t", "@inst_cand", 'instrument';
+}
+else {
+    say join "\t", "@inst_cand @fc_cand", 'mismatch';
+}
+
+exit;
+
+sub intersection {
+
+    my ($a, $b) = @_;
+    my %seen;
+    @seen{ @$a } = (0) x scalar @$a;
+    for my $x (@$b) {
+        next if (! defined $seen{$x});
+        $seen{$x} = 1
+    };
+    return grep {$seen{$_}} keys %seen;
+
+}
+        
+
+__END__
+
+=head1 NAME
+
+guess_ill_instrument - try to determine Illumina instrument from FASTQ headers
+
+=head1 SYNOPSIS
+
+guess_ill_instrument I<FASTQ_filename>
+
+=head1 DESCRIPTION
+
+This utility reads in a FASTQ file, either from STDIN or from the fist
+argument on the command line, and tries to match the header fields for the
+first sequence to known patterns for specific instruments. It  will report any
+matches found, as well as whether the headers matched to the platform ID, the
+flowcell ID, both, or whether the two fields matched different instruments.
+
+=head1 OPTIONS
+
+None
+
+=head1 CAVEATS AND BUGS
+
+Please submit bug reports to the issue tracker in the distribution repository.
+
+=head1 AUTHOR
+
+Jeremy Volkening <jeremy.volkening@base2bio.com>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2021 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+
+=cut

@@ -26,6 +26,9 @@ my %tests = (
     'MiniSeq' => [
         ['MiniSeq_01.fq.gz'      => 'flowcell'],
     ],
+    'MiSeq' => [
+        ['MiSeq_01.fq.gz'        => 'both'],
+    ],
     'NovaSeq 6000' => [
         ['NovaSeq_01.fq.gz'      => 'both'],
         ['NovaSeq_02.fq.gz'      => 'flowcell'],
@@ -36,6 +39,18 @@ my %tests = (
         ['NovaSeq_07.fq.gz'      => 'both'],
         ['NovaSeq_08.fq.gz'      => 'both'],
         ['NovaSeq_09.fq.gz'      => 'both'],
+    ],
+    'NextSeq' => [
+        ['NextSeq_01.fq.gz'      => 'both'],
+        ['NextSeq_02.fq.gz'      => 'both'],
+        ['NextSeq_03.fq.gz'      => 'both'],
+        ['NextSeq_04.fq.gz'      => 'both'],
+        ['NextSeq_05.fq.gz'      => 'both'],
+        ['NextSeq_06.fq.gz'      => 'both'],
+        ['NextSeq_07.fq.gz'      => 'both'],
+        ['NextSeq_08.fq.gz'      => 'both'],
+        ['NextSeq_09.fq.gz'      => 'both'],
+        ['NextSeq_10.fq.gz'      => 'flowcell'],
     ],
 );
 

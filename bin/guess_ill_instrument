@@ -20,36 +20,39 @@ my $VERSION = 0.001;
 # it.
 
 my @model_patterns = (
-    [qr/^ (HWI-)? M  \d{5} $/x        => ['MiSeq'] ],
-    [qr/^         MN \d{5} $/x        => ['MiniSeq'] ],
-    [qr/^         F  \d{5} $/x        => ['MiniSeq'] ],
-    [qr/^         F  [A-Z\d]{6,9} $/x => ['iSeq'] ],
-    [qr/^         A  \d{5}R? $/x      => ['NovaSeq 6000'] ],
-    [qr/^         NB \d{6} $/x        => ['NextSeq'] ],
-    [qr/^         NS \d{6} $/x        => ['NextSeq'] ],
-    [qr/^         E  \d{5} $/x        => ['HiSeq X'] ],
-    [qr/^         K  \d{5} $/x        => ['HiSeq 3000', 'HiSeq 4000'] ],
-    [qr/^         J  \d{5} $/x        => ['HiSeq 3000'] ],
-    [qr/^ (HWI-)? D  \d{5} $/x        => ['HiSeq 2500'] ],
-    [qr/^ (HWI-)? C  \d{5} $/x        => ['HiSeq 1500'] ],
-    [qr/^ HWIUSI            /x        => ['GA Ix'] ],
+    [qr/^ (HWI-)? M   \d{5} $/x        => ['MiSeq'] ],
+    [qr/^         MN  \d{5} $/x        => ['MiniSeq'] ],
+    [qr/^         F   \d{5} $/x        => ['MiniSeq'] ],
+    [qr/^         F   [A-Z\d]{6,9} $/x => ['iSeq'] ],
+    [qr/^         A   \d{5}R? $/x      => ['NovaSeq 6000'] ],
+    [qr/^         NB  \d{6} $/x        => ['NextSeq'] ],
+    [qr/^         NS  \d{6} $/x        => ['NextSeq'] ],
+    [qr/^         VH  \d{5} $/x        => ['NextSeq'] ],
+    [qr/^         E   \d{5} $/x        => ['HiSeq X'] ],
+    [qr/^         K   \d{5} $/x        => ['HiSeq 3000', 'HiSeq 4000'] ],
+    [qr/^         J   \d{5} $/x        => ['HiSeq 3000'] ],
+    [qr/^ (HWI-)? D   \d{5} $/x        => ['HiSeq 2500'] ],
+    [qr/^ (HWI-)? C   \d{5} $/x        => ['HiSeq 1500'] ],
+    [qr/^ HWIUSI             /x        => ['GA Ix'] ],
 );
 
 my @flowcell_patterns = (
-    [qr/^ 0{9} - [A-Z\d]{5} $/x          => ['MiSeq'] ],
-    [qr/^ [ABDG] [A-Z\d]{4} $/x          => ['MiSeq'] ], 
-    [qr/^ 000H [A-Z\d]{5} $/x            => ['MiniSeq'] ],
-    [qr/^ B [A-Z]{2} \d{5} - \d{4} $/x  => ['iSeq'] ],
-    [qr/^ H [A-Z\d]{4} DMXX $/x          => ['NovaSeq 6000'] ], #S2
-    [qr/^ H [A-Z\d]{4} DRXX $/x          => ['NovaSeq 6000'] ],
-    [qr/^ H [A-Z\d]{4} DSXX $/x          => ['NovaSeq 6000'] ], #S4
-    [qr/^ H [A-Z\d]{4} DSXY $/x          => ['NovaSeq 6000'] ],
-    [qr/^ H [A-Z\d]{4} MCVY $/x          => ['NovaSeq 6000'] ], #S2
-    [qr/^ C [A-Z\d]{4} A[CN]XX $/x       => ['HiSeq 1000', 'HiSeq 1500', 'HiSeq 2000', 'HiSeq 2500'] ],
-    [qr/^ H [A-Z\d]{4} (AD|BC)X[XY] $/x  => ['HiSeq 1500', 'HiSeq 2500'] ],
-    [qr/^ H [A-Z\d]{4} BBX[XY] $/x       => ['HiSeq 4000'] ],
-    [qr/^ H [A-Z\d]{4} (CC|AL)X[XY] $/x  => ['HiSeq X'] ],
-    [qr/^ H [A-Z\d]{4} (BG|AF)X[XY2] $/x => ['NextSeq'] ],
+    [qr/^ 0{9} - [A-Z\d]{5} $/x               => ['MiSeq'] ],
+    [qr/^ [ABDG] [A-Z\d]{4} $/x               => ['MiSeq'] ], 
+    [qr/^ 000H   [A-Z\d]{5} $/x               => ['MiniSeq'] ],
+    [qr/^ B      [A-Z]{2} \d{5} - \d{4} $/x   => ['iSeq'] ],
+    [qr/^ H      [A-Z\d]{4} DMXX $/x          => ['NovaSeq 6000'] ], #S2
+    [qr/^ H      [A-Z\d]{4} DRXX $/x          => ['NovaSeq 6000'] ],
+    [qr/^ H      [A-Z\d]{4} DSXX $/x          => ['NovaSeq 6000'] ], #S4
+    [qr/^ H      [A-Z\d]{4} DSXY $/x          => ['NovaSeq 6000'] ],
+    [qr/^ H      [A-Z\d]{4} MCVY $/x          => ['NovaSeq 6000'] ], #S2
+    [qr/^ C      [A-Z\d]{4} A[CN]XX $/x       => ['HiSeq 1000', 'HiSeq 1500', 'HiSeq 2000', 'HiSeq 2500'] ],
+    [qr/^ H      [A-Z\d]{4} (AD|BC)X[XY] $/x  => ['HiSeq 1500', 'HiSeq 2500'] ],
+    [qr/^ H      [A-Z\d]{4} BBX[XY] $/x       => ['HiSeq 4000'] ],
+    [qr/^ H      [A-Z\d]{4} (CC|AL)X[XY] $/x  => ['HiSeq X'] ],
+    [qr/^ H      [A-Z\d]{4} (BG|AF)X[XY2] $/x => ['NextSeq'] ],
+    [qr/^ AAA    [A-Z\d]{6}               /x  => ['NextSeq'] ],
+    [qr/                     BGX[A-Z\d]   /x  => ['NextSeq'] ],
 );
 
 # read in header fields of first sequence
@@ -88,6 +91,9 @@ for my $pattern (@flowcell_patterns) {
 my @res = intersection(\@inst_cand, \@fc_cand);
 if (scalar @res) {
     say join "\t", @res, 'both';
+}
+elsif (! scalar @inst_cand && ! scalar @fc_cand) {
+    say join "\t", '', 'no_match';
 }
 elsif (! scalar @inst_cand) {
     say join "\t", "@fc_cand", 'flowcell';

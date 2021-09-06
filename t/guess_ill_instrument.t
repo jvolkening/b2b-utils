@@ -14,12 +14,25 @@ use File::Which;
 my $bin = 'bin/guess_ill_instrument';
 
 my %tests = (
-    'HiSeq 4000' => [
+    'HiSeq 1000/1500/2000/2500' => [
+        ['HiSeq2000_01.fq.gz'    => 'flowcell'],
+        ['HiSeq2000_02.fq.gz'    => 'flowcell'],
+        ['HiSeq2000_03.fq.gz'    => 'flowcell'],
+        ['HiSeq2000_04.fq.gz'    => 'flowcell'],
+    ],
+    'HiSeq 4000/HiSeq X' => [
         ['HiSeq4000_01.fq.gz'    => 'flowcell'],
         ['HiSeq4000_02.fq.gz'    => 'flowcell'],
         ['HiSeq4000_03.fq.gz'    => 'flowcell'],
-        ['HiSeq4000_04.fq.gz'    => 'both'],
         ['HiSeq4000_05.fq.gz'    => 'flowcell'],
+    ],
+    'HiSeq 4000' => [
+        ['HiSeq4000_04.fq.gz'    => 'both'],
+    ],
+    'HiSeq X' => [
+        ['HiSeqX_01.fq.gz'    => 'instrument'],
+        ['HiSeqX_02.fq.gz'    => 'both'],
+        ['HiSeqX_03.fq.gz'    => 'instrument'],
     ],
     'iSeq' => [
         ['iSeq_01.fq.gz'         => 'both'],

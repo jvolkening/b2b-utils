@@ -56,17 +56,12 @@ my %tests = (
     ],
     'MiSeq' => [
         ['MiSeq_01.fq.gz'        => 'both'],
-    ],
-    'NovaSeq 6000' => [
-        ['NovaSeq_01.fq.gz'      => 'both'],
-        ['NovaSeq_02.fq.gz'      => 'flowcell'],
-        ['NovaSeq_03.fq.gz'      => 'both'],
-        ['NovaSeq_04.fq.gz'      => 'both'],
-        ['NovaSeq_05.fq.gz'      => 'both'],
-        ['NovaSeq_06.fq.gz'      => 'both'],
-        ['NovaSeq_07.fq.gz'      => 'both'],
-        ['NovaSeq_08.fq.gz'      => 'both'],
-        ['NovaSeq_09.fq.gz'      => 'both'],
+        ['MiSeq_02.fq.gz'        => 'both'],
+        ['MiSeq_03.fq.gz'        => 'both'],
+        ['MiSeq_04.fq.gz'        => 'both'],
+        ['MiSeq_05.fq.gz'        => 'both'],
+        ['MiSeq_06.fq.gz'        => 'both'],
+        ['MiSeq_07.fq.gz'        => 'both'],
     ],
     'NextSeq' => [
         ['NextSeq_01.fq.gz'      => 'both'],
@@ -79,6 +74,17 @@ my %tests = (
         ['NextSeq_08.fq.gz'      => 'both'],
         ['NextSeq_09.fq.gz'      => 'both'],
         ['NextSeq_10.fq.gz'      => 'flowcell'],
+    ],
+    'NovaSeq 6000' => [
+        ['NovaSeq_01.fq.gz'      => 'both'],
+        ['NovaSeq_02.fq.gz'      => 'flowcell'],
+        ['NovaSeq_03.fq.gz'      => 'both'],
+        ['NovaSeq_04.fq.gz'      => 'both'],
+        ['NovaSeq_05.fq.gz'      => 'both'],
+        ['NovaSeq_06.fq.gz'      => 'both'],
+        ['NovaSeq_07.fq.gz'      => 'both'],
+        ['NovaSeq_08.fq.gz'      => 'both'],
+        ['NovaSeq_09.fq.gz'      => 'both'],
     ],
 );
 

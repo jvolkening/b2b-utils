@@ -14,6 +14,11 @@ use File::Which;
 my $bin = 'bin/guess_ill_instrument';
 
 my %tests = (
+    'GA IIx' => [
+        ['GAIIx_01.fq.gz'    => 'instrument'],
+        ['GAIIx_02.fq.gz'    => 'instrument'],
+        ['GAIIx_03.fq.gz'    => 'instrument'],
+    ],
     'HiSeq 1000/1500/2000/2500' => [
         ['HiSeq2000_01.fq.gz'    => 'flowcell'],
         ['HiSeq2000_02.fq.gz'    => 'flowcell'],

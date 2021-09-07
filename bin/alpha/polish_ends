@@ -6,7 +6,7 @@ use 5.012;
 
 use BioX::Seq::Stream;
 use File::Temp;
-use File::Which qw/which/;
+use IPC::Cmd qw/can_run/;
 use Getopt::Long;
 use Pod::Usage;
 
@@ -44,7 +44,7 @@ if (! $fill_ends && ! $trim_ends) {
     die "Must specify at least one of --trim_ends or --fill_ends";
 }
 
-my $MAFFT = which('mafft')
+my $MAFFT = can_run('mafft')
     // die "MAFFT is required but not found\n";
 
 my $p_ref = BioX::Seq::Stream->new($ref)
@@ -152,8 +152,6 @@ Requires the following non-core Perl libraries:
 =over 1
 
 =item * BioX::Seq
-
-=item * File::Which
 
 =back
 

@@ -10,7 +10,7 @@ use Getopt::Long;
 use Pod::Usage;
 use File::Path qw/rmtree/;
 use File::Temp qw/tempdir/;
-use File::Which qw/which/;
+use IPC::Cmd qw/can_run/;
 
 my $PROGRAM = 'rm_chim';
 my $VERSION = 0.003;
@@ -44,7 +44,7 @@ if (! defined $fa && ! defined $db) {
     die "One of --fa or --db must be specified\n";
 }
 
-my $BWA = which('bwa') // die "BWA not found. Please install or check \$PATH\n";
+my $BWA = can_run('bwa') // die "BWA not found. Please install or check \$PATH\n";
 
 my $tmp_dir;
 if (defined $fa) {

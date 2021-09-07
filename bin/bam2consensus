@@ -8,7 +8,7 @@ use BioX::Seq;
 use BioX::Seq::Stream;
 use BioX::Seq::Fetch;
 use File::Temp qw/tempfile/;
-use File::Which qw/which/;
+use IPC::Cmd qw/can_run/;
 use Getopt::Long;
 use List::Util qw/sum max first/;
 use Pod::Usage;
@@ -54,7 +54,7 @@ GetOptions(
 ) or pod2usage( -verbose => 1);
 
 # check for recent version of samtools
-my $SAMTOOLS = which('samtools')
+my $SAMTOOLS = can_run('samtools')
     // die "Samtools is required but not found\n";
 my $v_string = `$SAMTOOLS --version`;
 if ($v_string =~ /^samtools (\d+)\.(\d+)/m) {
@@ -64,7 +64,7 @@ if ($v_string =~ /^samtools (\d+)\.(\d+)/m) {
 }
 
 # check for mafft
-my $MAFFT = which('mafft')
+my $MAFFT = can_run('mafft')
     // die "MAFFT is required but not found\n";
 
 
@@ -602,8 +602,6 @@ various knobs and optional output formats
 Requires the following non-core Perl libraries:
 
 =over 1
-
-=item * File::Which
 
 =item * BioX::Seq
 

@@ -241,6 +241,7 @@ sub polish_medaka {
         '-d' => $fi_cons,
         '-o' => 'polished',
     );
+    warn "@cmd\n";
     run( command => \@cmd )
         or die "Call to medaka failed: $!";
 

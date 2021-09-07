@@ -9,7 +9,6 @@ use Test::More;
 use File::Temp qw/tempfile/;
 use File::Compare;
 use File::Temp;
-use File::Which;
 
 my $bin = 'bin/guess_ill_instrument';
 

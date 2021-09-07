@@ -5,7 +5,7 @@ use warnings;
 use 5.012;
 
 use File::Temp;
-use File::Which;
+use IPC::Cmd qw/can_run/;
 use Getopt::Long;
 
 my $clipboard  = 'clipboard'; # 'clipboard' or 'primary'
@@ -21,8 +21,8 @@ GetOptions(
 );
 
 # check for necessary binaries
-which('xclip')   // die "Missing required xclip binary\n";
-which('sensible-browser') // die "Missing required sensible-browser binary\n";
+can_run('xclip')   // die "Missing required xclip binary\n";
+can_run('sensible-browser') // die "Missing required sensible-browser binary\n";
 
 my $query = `xclip -selection $clipboard -o -`;
 $query =~ s/\s//g;

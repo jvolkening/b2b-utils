@@ -9,10 +9,10 @@ use Test::More;
 use File::Temp qw/tempfile/;
 use File::Compare;
 use File::Temp;
-use File::Which;
+use IPC::Cmd qw/can_run/;
 
 # Don't run tests if BWA not installed
-if (! defined which('bwa')) {
+if (! defined can_run('bwa')) {
     plan skip_all => "BWA not found so can't test";
     exit;
 }

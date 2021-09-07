@@ -8,10 +8,10 @@ use warnings;
 use Test::More;
 use File::Temp;
 use File::Compare;
-use File::Which;
+use IPC::Cmd qw/can_run/;
 
 # Don't run tests if BWA not installed
-if (! defined which('samtools') || ! defined which('mafft')) {
+if (! defined can_run('samtools') || ! defined can_run('mafft')) {
     plan skip_all => "samtools/mafft not found so can't test";
     exit;
 }
@@ -33,8 +33,8 @@ my $ret;
 
 SKIP: {
 
-    my $missing_bins = ! defined which('mafft')
-        || ! defined which('samtools');
+    my $missing_bins = ! defined can_run('mafft')
+        || ! defined can_run('samtools');
 
     skip "samtools and/or mafft not installed", 4 if $missing_bins;
 

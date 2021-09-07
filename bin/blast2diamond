@@ -6,7 +6,7 @@ use warnings;
 use Getopt::Long;
 use File::Spec;
 use File::Temp qw/tempfile/;
-use File::Which qw/which/;
+use IPC::Cmd qw/can_run/;
 
 my $PROGRAM = 'blast2diamond';
 my $VERSION = 0.003;
@@ -16,7 +16,7 @@ my $pfx_out;
 my %BINS;
 
 for (qw/blastdbcmd diamond/) {
-    $BINS{$_} = which($_) // die "$_ is required to run this program. Install"
+    $BINS{$_} = can_run($_) // die "$_ is required to run this program. Install"
         . " or check your \$PATH";
 }
 
@@ -75,15 +75,7 @@ Converts a sequence database in BLAST+ format to a DIAMOND database.
 
 =head1 PREREQUISITES
 
-Requires the following non-core Perl libraries:
-
-=over 1
-
-=item * File::Which
-
-=back
-
-as well as the following binaries:
+Requires the following binaries:
 
 =over 1
 

@@ -6,7 +6,7 @@ use 5.012;
 
 use Cwd qw/abs_path/;
 use File::Temp qw/tempdir tempfile/;
-use File::Which qw/which/;
+use IPC::Cmd qw/can_run/;
 use List::Util qw/sum/;
 use Getopt::Long;
 use Pod::Usage;
@@ -49,7 +49,7 @@ if (defined $sam) {
 
 else {
 
-    my $BWA = which('bwa')
+    my $BWA = can_run('bwa')
         // die "BWA is required but not found\n";
 
     my ($tmp_dir) = tempdir( CLEANUP => 1);
@@ -116,15 +116,7 @@ lengths, one per line.
 
 =head1 PREREQUISITES
 
-Requires the following non-core Perl libraries:
-
-=over 1
-
-=item * File::Which
-
-=back
-
-as well as the following binaries:
+Requires the following binaries:
 
 =over 1
 

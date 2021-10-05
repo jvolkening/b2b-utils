@@ -1,0 +1,168 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use IO::Uncompress::AnyUncompress qw(anyuncompress $AnyUncompressError) ;
+use Getopt::Long;
+use List::Util qw/first max/;
+use Pod::Usage qw/pod2usage/;
+
+our $VERSION = '0.001';
+
+use constant PROGRAM => 'uc_pp';
+
+my $fn_in;
+
+GetOptions(
+    'in=s'      => \$fn_in,
+    'help'      => sub{ pod2usage(-verbose => 2, input => \*DATA) },
+    'version'   => sub{ print 'This is ', PROGRAM, ' v', $VERSION, "\n"; exit },
+);
+
+my $status = anyuncompress(
+    $fn_in,
+    '-',
+    'AutoClose' => 1,
+    'MultiStream' => 1
+) or die "decompression failed: $AnyUncompressError\n";
+
+__END__
+
+=head1 NAME
+
+uc_pp - the (sort of) universal UnCompressor
+
+=head1 SYNOPSIS
+
+uc_pp --in I<infile> > I<outfile>
+
+=head1 DESCRIPTION
+
+B<uc_pp> is a semi-universal front-end to various decompression programs. It
+determines the type of the input file given, tries to find an appropriate
+decompression program in the current PATH, and, if possible, decompresses the
+file to STDOUT. The purpose is to facilitate use of heterogeneous inputs to
+data analysis pipelines by providing for "universal" decompression of
+compressed input data without knowing the format in advance.
+
+=head1 SUPPORTED FORMATS
+
+Currently, the following formats are supported. One or more of the binaries
+listed below need to be present in the current PATH in order to support that
+file type. If multiple options are available, one will be chosen
+preferentially in the order listed.
+
+=head2 GZIP
+
+=over 2
+
+=item pigz
+
+=item gzip
+
+=back
+
+=head2 BZIP2
+
+=over 2
+
+=item lbzip2
+
+=item pbzip2
+
+=item bzip2
+
+=back
+
+=head2 ZSTD
+
+=over 2
+
+=item zstd
+
+=back
+
+=head2 LZ4
+
+=over 2
+
+=item lz4
+
+=back
+
+=head2 LZIP
+
+=over 2
+
+=item plzip
+
+=item lzip
+
+=back
+
+=head2 XZ
+
+=over 2
+
+=item xz
+
+=back
+
+=head1 OPTIONS
+
+=over 2
+
+=item B<--in>
+
+Path to the input file. Reading from STDIN is not supported.
+
+=item B<--threads>
+
+The number of threads to use for decompression. Support varies by
+decompression tool. If not specified, the default for each program is
+used.
+
+=item B<--help>
+
+Show documentation and exit
+
+=item B<--version>
+
+Print version string and exit
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+This software has been tested on Linux only. While it should also work on
+Windows, Mac OSX, BSD, and other systems with the appropriate modules
+and compression tools installed, it has not been tested on these systems. 
+
+Please report all bugs or suggestions on the software repository issues page.
+
+=head1 AUTHOR
+
+Jeremy Volkening
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2020 Jeremy Volkening <jeremy.volkening@base2bio.com>
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+

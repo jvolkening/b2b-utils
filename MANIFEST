@@ -19,6 +19,7 @@ bin/rm_gaps
 bin/seq_diff
 bin/summarize_assembly
 bin/sync_reads
+bin/uc
 Build.PL
 LICENSE
 MANIFEST			This list of files
@@ -130,6 +131,12 @@ t/test_data/test.rmgap.1.0.fa
 t/test_data/test.rmgap.1.50.fa
 t/test_data/test.rmgap.100.50.fa
 t/test_data/test_R1.fq
+t/test_data/test_R1.fq.bz2
+t/test_data/test_R1.fq.gz
+t/test_data/test_R1.fq.lz
+t/test_data/test_R1.fq.lz4
+t/test_data/test_R1.fq.xz
+t/test_data/test_R1.fq.zst
 t/test_data/test_R1.gatk.fq
 t/test_data/test_R1.illumina.fq
 t/test_data/test_R1.singles.fq
@@ -137,3 +144,4 @@ t/test_data/test_R1.sync.fq
 t/test_data/test_R2.fq
 t/test_data/test_R2.singles.fq
 t/test_data/test_R2.sync.fq
+t/uc.t

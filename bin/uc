@@ -11,7 +11,7 @@ use Getopt::Long;
 use List::Util qw/first max/;
 use Pod::Usage qw/pod2usage/;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 use constant PROGRAM => 'uc';
 
@@ -44,58 +44,85 @@ my %thread_flags = (
     xz     => 'T',
 );
 
-my $fn_in;
+my @fn_in;
 my $threads;
+my $specific_bin;
 
 GetOptions(
-    'in=s'      => \$fn_in,
+    'in=s'      => \@fn_in,
     'threads=i' => \$threads,
+    'program=s' => \$specific_bin,
     'help'      => sub{ pod2usage(-verbose => 2, input => \*DATA) },
     'version'   => sub{ print 'This is ', PROGRAM, ' v', $VERSION, "\n"; exit },
 );
 
-#detect filetype based on magic bytes
-open my $in, '<:raw', $fn_in;
-my $n_want = max map {length $_} keys %magic;
-my $buf;
-my $n_read = read $in, $buf, $n_want;
-die "Failed to read initial bytes"
-    if ($n_read != $n_want);
-
-my $type_str = first {$buf =~ /^\Q$_\E/} keys %magic;
-die "Failed to detect file type"
-    if (! defined $type_str);
-my $type = $magic{$type_str};
-my @bins =
-    grep {defined $_}
-    map {can_run($_)}
-    @{ $bins{$type} };
-my $BIN = $bins[0]
-    // die "Failed to find suitable binary to use on $type filetype";
-
-# Set standard parameters for decompression
-my @leading_params = qw/-d -q -c/;
-my @trailing_params = ();
-
-# BSC has non-standard syntax, so we need some shims here
-if ($type eq 'BSC') {
-    @leading_params = ('d');
-    @trailing_params = ('/dev/stdout');
-}
-my $thread_flag = $thread_flags{ basename($BIN) };
-if (defined $threads && defined $thread_flag) {
-    push @leading_params, "-$thread_flag$threads";
-}
-
-my @cmd = (
-    $BIN,
-    @leading_params,
-    $fn_in,
-    @trailing_params,
+# to make the program more like zcat, etc (able to take multiple filenames as
+# input arguments and output a single stream), we consume any unused
+# command-line arguments as input filenames. For backward compatibility, we
+# also continue to accept input filenames given using '--in'.
+my @combined_inputs = (
+    @ARGV,
+    @fn_in
 );
-my $ret = system @cmd;
-die "External decompression failed: $!"
-    if ($ret);
+for (@combined_inputs) {
+    die "File $_ not found or not readable"
+        if (! -r $_);
+}
+
+for my $fn_in (@combined_inputs) {
+
+    #detect filetype based on magic bytes
+    open my $in, '<:raw', $fn_in;
+    my $n_want = max map {length $_} keys %magic;
+    my $buf;
+    my $n_read = read $in, $buf, $n_want;
+    die "Failed to read initial bytes"
+        if ($n_read != $n_want);
+
+    my $type_str = first {$buf =~ /^\Q$_\E/} keys %magic;
+    die "Failed to detect file type"
+        if (! defined $type_str);
+    my $type = $magic{$type_str};
+
+    my $BIN;
+    if (defined $specific_bin) {
+        $BIN = can_run($specific_bin)
+            // die "Specified program not found: $specific_bin\n";
+    }
+    else {
+        my @bins =
+            grep {defined $_}
+            map {can_run($_)}
+            @{ $bins{$type} };
+        $BIN = $bins[0]
+            // die "Failed to find suitable binary to use on $type filetype";
+    }
+
+    # Set standard parameters for decompression
+    my @leading_params = qw/-d -q -c/;
+    my @trailing_params = ();
+
+    # BSC has non-standard syntax, so we need some shims here
+    if ($type eq 'BSC') {
+        @leading_params = ('d');
+        @trailing_params = ('/dev/stdout');
+    }
+    my $thread_flag = $thread_flags{ basename($BIN) };
+    if (defined $threads && defined $thread_flag) {
+        push @leading_params, "-$thread_flag$threads";
+    }
+
+    my @cmd = (
+        $BIN,
+        @leading_params,
+        $fn_in,
+        @trailing_params,
+    );
+    my $ret = system @cmd;
+    die "External decompression failed: $!"
+        if ($ret);
+
+}
 
 __END__
 
@@ -105,6 +132,7 @@ uc - the (sort of) universal UnCompressor
 
 =head1 SYNOPSIS
 
+uc --threads I<integer> I<infile1> I<infile2> ... > I<outfile>
 uc --threads I<integer> --in I<infile> > I<outfile>
 
 =head1 DESCRIPTION
@@ -114,7 +142,7 @@ determines the type of the input file given, tries to find an appropriate
 decompression program in the current PATH, and, if possible, decompresses the
 file to STDOUT. The purpose is to facilitate use of heterogeneous inputs to
 data analysis pipelines by providing for "universal" decompression of
-compressed input data without knowing the format in advance.
+compressed input data without knowing the compression format in advance.
 
 =head1 SUPPORTED FORMATS
 
@@ -183,15 +211,23 @@ preferentially in the order listed.
 
 =over 2
 
-=item B<--in>
+=item B<--in> I<file_path>
 
-Path to the input file. Reading from STDIN is not supported.
+Path to the input file. Reading from STDIN is not supported. Any "naked"
+arguments given on the command line are also assumed to be input filenames.
 
-=item B<--threads>
+=item B<--threads> I<integer>
 
 The number of threads to use for decompression. Support varies by
 decompression tool. If not specified, the default for each program is
 used.
+
+=item B<--program> I<name_or_path>
+
+Override automatic detection and explicitly specify which decompression
+program to use. The argument can be either the full path to the program or the
+name of a program in the current PATH. Used mainly for testing, since if you
+knew the value beforehand you wouldn't be using this software.
 
 =item B<--help>
 
@@ -217,7 +253,7 @@ Jeremy Volkening
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2020 Jeremy Volkening <jeremy.volkening@base2bio.com>
+Copyright 2020-2021 Jeremy Volkening <jeremy.volkening@base2bio.com>
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

@@ -6,12 +6,13 @@ use 5.012;
 use autodie;
 
 use File::Basename qw/basename/;
-use IPC::Cmd qw/can_run/;
+use File::Temp;
 use Getopt::Long;
+use IPC::Cmd qw/can_run run/;
 use List::Util qw/first max/;
 use Pod::Usage qw/pod2usage/;
 
-our $VERSION = '0.002';
+our $VERSION = '0.003';
 
 use constant PROGRAM => 'uc';
 
@@ -22,7 +23,7 @@ my %magic = (
     pack('C6', 0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00),  'XZ',
     'LZIP',                                          'LZIP',
     'BZh',                                           'BZIP2',
-    #'bsc1',                                          'BSC',
+    'bsc1',                                          'BSC',
 );
 
 my %bins = (
@@ -32,7 +33,7 @@ my %bins = (
     LZ4   => [qw/lz4/],
     LZIP  => [qw/plzip lzip/],
     XZ    => [qw/xz/],
-    #BSC   => [qw/bsc/],
+    BSC   => [qw/bsc/],
 );
 
 my %thread_flags = (
@@ -102,10 +103,18 @@ for my $fn_in (@combined_inputs) {
     my @leading_params = qw/-d -q -c/;
     my @trailing_params = ();
 
+    # Some programs can't write directly to stdout, even using /dev/stdout
+    # (presumably they need seekable access to the output). As a workaround,
+    # write to temporary file and then stream that to stdout
+    my $tmp_out;
+    my $capture_stdout = 0;
+
     # BSC has non-standard syntax, so we need some shims here
     if ($type eq 'BSC') {
         @leading_params = ('d');
-        @trailing_params = ('/dev/stdout');
+        $tmp_out = File::Temp->new(UNLINK => 1);
+        @trailing_params = ("$tmp_out");
+        $capture_stdout = 1;
     }
     my $thread_flag = $thread_flags{ basename($BIN) };
     if (defined $threads && defined $thread_flag) {
@@ -118,9 +127,29 @@ for my $fn_in (@combined_inputs) {
         $fn_in,
         @trailing_params,
     );
-    my $ret = system @cmd;
-    die "External decompression failed: $!"
-        if ($ret);
+
+    if ($capture_stdout) {
+        run(command => \@cmd)
+            or die "External decompression failed: $!";
+    }
+    else {
+        my $ret = system @cmd;
+        die "External decompression failed: $!"
+            if ($ret);
+    }
+    # for commands that write to a temporary file, now stream that file to
+    # STDOUT
+    if (defined $tmp_out) {
+
+        my @cmd = (
+            'cat',
+            "$tmp_out"
+        );
+        my $ret = system @cmd;
+        die "cat failed: $!"
+            if ($ret);
+
+    }
 
 }
 
@@ -204,6 +233,14 @@ preferentially in the order listed.
 =over 2
 
 =item xz
+
+=back
+
+=head2 BSC
+
+=over 2
+
+=item bsc
 
 =back
 

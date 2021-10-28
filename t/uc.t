@@ -24,16 +24,17 @@ my %files = (
     plzip  => [ 'test_R1.fq.lz'  ],
     lzip   => [ 'test_R1.fq.lz'  ],
     xz     => [ 'test_R1.fq.xz'  ],
+    bsc    => [ 'test_R1.fq.bsc' ],
 );
 
-for my $bin (keys %files) {
+for my $prog (keys %files) {
 
-    my @inputs = @{ $files{$bin} };
+    my @inputs = @{ $files{$prog} };
 
     SKIP: {
 
-        skip "Missing $bin, tests not run", scalar(@inputs)
-            if (! defined can_run($bin));
+        skip "Missing $prog, tests not run", scalar(@inputs)
+            if (! defined can_run($prog));
 
         for my $fn_in (@inputs) {
 
@@ -55,14 +56,15 @@ for my $bin (keys %files) {
             # test single input
             my ($ok, $msg, $all, $stdout, $stderr) = run(
                 command => [
-                    'uc',
-                    '--program' => $bin,
+                    $bin,
+                    '--program' => $prog,
                     '--threads' => 1,
                     "t/test_data/$fn_in"
                 ]
             );
-            ok( $ok, "test $bin on $fn_in succeeded" );
-            my $tmp = File::Temp->new(UNLINK => 1);
+            warn "M: $msg\n";
+            ok( $ok, "test $prog on $fn_in succeeded" );
+            my $tmp = File::Temp->new(UNLINK => 0);
             print {$tmp} $_ for (@{$stdout});
             close $tmp;
             ok( compare("$tmp" => "t/test_data/$fn_out")   == 0, "outputs match" );
@@ -70,14 +72,14 @@ for my $bin (keys %files) {
             # test double input
             ($ok, $msg, $all, $stdout, $stderr) = run(
                 command => [
-                    'uc',
-                    '--program' => $bin,
+                    $bin,
+                    '--program' => $prog,
                     '--threads' => 1,
                     "t/test_data/$fn_in",
                     '--in' => "t/test_data/$fn_in"
                 ]
             );
-            ok( $ok, "double test $bin on $fn_in succeeded" );
+            ok( $ok, "double test $prog on $fn_in succeeded" );
             $tmp = File::Temp->new(UNLINK => 1);
             print {$tmp} $_ for (@{$stdout});
             close $tmp;

@@ -131,6 +131,7 @@ t/test_data/test.rmgap.1.0.fa
 t/test_data/test.rmgap.1.50.fa
 t/test_data/test.rmgap.100.50.fa
 t/test_data/test_R1.fq
+t/test_data/test_R1.fq.bsc
 t/test_data/test_R1.fq.bz2
 t/test_data/test_R1.fq.gz
 t/test_data/test_R1.fq.lz

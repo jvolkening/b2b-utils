@@ -66,12 +66,18 @@ else {
         "$tmp_dir/tmp.fasta"
     );
     die "link failed" if ($res);
+
+    open my $stderr_old, '>&', \*STDERR;
+    open STDERR, '>>', File::Spec->devnull();
     $res = system(
         $BWA,
         'index',
         "$tmp_dir/tmp.fasta"
     );
+    open STDERR, '>&', $stderr_old;
     die "index failed" if ($res);
+
+    open STDERR, '>>', File::Spec->devnull();
     open $fh_sam, '-|', $BWA,
         'mem',
         '-t' => $threads,
@@ -80,6 +86,8 @@ else {
         $forward,
         $reverse
     ;
+    open STDERR, '>&', $stderr_old;
+
 }
 
 my $c = 0;

@@ -123,6 +123,9 @@ my $seqs = BioX::Seq::Fetch->new($fn_ref) or die "Error loading reference";
 # Bio::DB::HTS or the like)
 
 $fn_bam //= '-'; # use stdin if BAM file not given
+
+open my $stderr_old, '>&', \*STDERR;
+open STDERR, '>>', File::Spec->devnull();
  
 open my $fh, '-|', $SAMTOOLS,
     'mpileup',
@@ -131,6 +134,7 @@ open my $fh, '-|', $SAMTOOLS,
     '-f' => $fn_ref,
     $fn_bam ;
     
+open STDERR, '>&', $stderr_old;
 
 
 LINE:

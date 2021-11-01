@@ -62,7 +62,6 @@ for my $prog (keys %files) {
                     "t/test_data/$fn_in"
                 ]
             );
-            warn "M: $msg\n";
             ok( $ok, "test $prog on $fn_in succeeded" );
             my $tmp = File::Temp->new(UNLINK => 0);
             print {$tmp} $_ for (@{$stdout});

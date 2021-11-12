@@ -1,0 +1,79 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use BioX::Seq::Stream;
+use Getopt::Long;
+use Time::Piece;
+
+my $fi_fq;
+my $fo_fq;
+my $elapsed;
+my $frac_sampled;
+my $n_sampled;
+
+GetOptions(
+    'in=s'         => \$fi_fq,
+    'out=s'        => \$fo_fq,
+    'elapsed=i'    => \$elapsed,
+    'fraction=f'   => \$frac_sampled,
+    'n_reads=i'    => \$n_sampled,
+);
+
+# check that exactly one subsampling criterion is specified
+my $n_def = grep {defined $_}
+    $elapsed,
+    $frac_sampled,
+    $n_sampled;
+if ($n_def < 1) {
+    die "Must specify at least one of --elapsed, --fraction, or --n_reads\n";
+}
+
+my $p = BioX::Seq::Stream->new($fi_fq);
+
+open my $out, '>', $fo_fq;
+
+my %seqs;
+my $start_time;
+while (my $seq = $p->next_seq) {
+    my $desc = $seq->desc;
+    if ($desc =~ /\bstart_time=([\d\-\:TZ]+)/) {
+        my $t = Time::Piece->strptime($1, "%Y-%m-%dT%H:%M:%SZ");
+        my $e = $t->epoch;
+        $seqs{$seq->id} = {
+            seq  => $seq->as_fastq,
+            time => $e,
+        };
+        $start_time //= $e;
+        $start_time = $e if ($e < $start_time);
+    }
+}
+
+my @kept_ids = keys %seqs;
+
+if (defined $elapsed) {
+    my $end_time = $start_time + $elapsed - 1;
+    @kept_ids = grep {
+        $seqs{$_}->{time} <= $end_time
+    } @kept_ids;
+
+}
+
+my @sorted_ids = sort {
+    $seqs{$a}->{time} <=> $seqs{$b}->{time}
+} @kept_ids;
+
+if (defined $frac_sampled) {
+    @sorted_ids = grep {rand() < $frac_sampled} @sorted_ids;
+}
+if (defined $n_sampled) {
+    splice @sorted_ids, $n_sampled;
+}
+
+print {$out} $seqs{$_}->{seq}
+    for (@sorted_ids);
+
+exit;

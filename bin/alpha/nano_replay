@@ -1,0 +1,90 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use List::Util qw/max min/;
+use Time::HiRes qw/sleep/;
+use Time::Piece;
+
+use Getopt::Long;
+
+my $fi_fq;
+my $dir_out;
+my $chunk_size = 1000;
+my $speedup = 1;
+my $max_seqs;
+my $manual_wait;
+
+GetOptions(
+    'in=s'         => \$fi_fq,
+    'out=s'        => \$dir_out,
+    'chunk_size=i' => \$chunk_size,
+    'speedup=f'    => \$speedup,
+    'max_seqs=i'   => \$max_seqs,
+    'wait=i'       => \$manual_wait,
+);
+
+my $p = BioX::Seq::Stream->new($fi_fq);
+
+die "Output directory doesn't exist or not a directory\n"
+    if (! -d $dir_out);
+
+my %seqs;
+my $n = 0;
+while (my $seq = $p->next_seq) {
+    ++$n;
+    my $desc = $seq->desc;
+    if ($desc =~ /start_time=([\d\-\:TZ]+)/) {
+        my $t = Time::Piece->strptime($1, "%Y-%m-%dT%H:%M:%SZ");
+        my $e = $t->epoch;
+        $seqs{$seq->id} = {
+            seq  => $seq->as_fastq,
+            time => $e,
+        };
+    }
+    last if (defined $max_seqs && $n >= $max_seqs);
+}
+
+
+my @sorted_ids = sort {$seqs{$a}->{time} <=> $seqs{$b}->{time}} keys %seqs;
+
+my $start_time = $seqs{$sorted_ids[0]}->{time};
+
+my @chunks;
+my @elapsed;
+
+my $i = 0;
+while ($i < scalar(@sorted_ids)) {
+    my $last = min(
+        $#sorted_ids,
+        $i + $chunk_size - 1,
+    );
+    my $chunk;
+    my $last_time = 0;
+    open my $stream, '>', \$chunk;
+    for my $j ($i..$last) {
+        my $seq = $seqs{ $sorted_ids[$j] };
+        print {$stream} $seq->{seq};
+        $last_time = max($last_time, $seq->{time});
+    }
+    close $stream;
+    push @chunks, $chunk;
+    push @elapsed, ($last_time-$start_time)/$speedup;
+    $start_time = $last_time;
+    $i += $chunk_size;
+}
+
+for my $i (0..$#elapsed) {
+    my $wait = $manual_wait // $elapsed[$i];
+    say STDERR "Waiting $wait seconds until next emit";
+    sleep $wait;
+    my $fn_out = "$dir_out/$i.fastq";
+    open my $out, '>', $fn_out;
+    print {$out} $chunks[$i];
+    close $out;
+}
+    
+     

@@ -116,6 +116,7 @@ t/test_data/minimeta.out.fa
 t/test_data/nanopore.fq.gz
 t/test_data/pair.aln.fa
 t/test_data/pair.diff.tsv
+t/test_data/pair.diff.len.tsv
 t/test_data/rm_chim.in.fq
 t/test_data/rm_chim.out.fq
 t/test_data/summary

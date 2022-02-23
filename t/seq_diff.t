@@ -9,9 +9,10 @@ use Test::More;
 use File::Temp;
 use File::Compare;
 
-my $bin = 'bin/seq_diff';
-my $in  = 't/test_data/pair.aln.fa';
-my $cmp = 't/test_data/pair.diff.tsv';
+my $bin     = 'bin/seq_diff';
+my $in      = 't/test_data/pair.aln.fa';
+my $cmp     = 't/test_data/pair.diff.tsv';
+my $cmp_len = 't/test_data/pair.diff.len.tsv';
 
 my $i = 1;
 
@@ -19,6 +20,12 @@ my $out = File::Temp->new(UNLINK => 1);
 my $ret = system( "$bin < $in > $out" );
 ok( ! $ret, "test $i call succeeded" );
 ok( compare($cmp => $out) == 0, "test $i files match" );
+++$i;
+
+$out = File::Temp->new(UNLINK => 1);
+$ret = system( "$bin --print_len < $in > $out" );
+ok( ! $ret, "test $i call succeeded" );
+ok( compare($cmp_len => $out) == 0, "test $i files match" );
 ++$i;
 
 done_testing();

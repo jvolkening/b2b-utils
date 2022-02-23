@@ -9,12 +9,23 @@ use Getopt::Long;
 use Pod::Usage;
 use List::MoreUtils qw/uniq/;
 
-my $aln = $ARGV[0];
+my $NAME = 'seq_diff';
+my $VERSION = '0.002';
+
+my $print_len;
 
 GetOptions(
+    'print_len'        => \$print_len,
     'man'              => sub{ pod2usage(-verbose => 2); },
     'help'             => sub{ pod2usage(-verbose => 2); },
+    'version'          => sub{ print "This is $NAME v$VERSION\n" and exit },
+) or pod2usage(
+    -msg => 'Syntax error: please check your command',
+    -verbose => 1
 );
+
+
+my $aln = $ARGV[0];
 
 my $s = BioX::Seq::Stream->new($aln);
 
@@ -26,6 +37,11 @@ while (my $seq = $s->next_seq) {
 }
 die "Too few sequences\n"
     if (scalar @seqs < 2);
+
+if ($print_len) {
+    my $l = length $seqs[0];
+    say "# length: $l bp";
+}
 
 say join "\t",
     'start',
@@ -122,6 +138,79 @@ Requires the following non-core Perl libraries:
 =item * BioX::Seq
 
 =back
+
+=head1 OPTIONS
+
+=over
+
+=item B<--print_len>
+
+Add an info line to output indicating alignment length
+
+=item B<--out> I<filename>
+
+Path to FASTQ output file. If not given, output will be written to STDOUT.
+
+=item B<--scheme> I<scheme>
+
+The binning scheme to use. Currently three presets are supported:
+
+B<illumina> -- Puts quality scores into one of eight bins:
+
+>= 40 : 40
+
+35-39 : 37
+
+30-34 : 33
+
+25-29 : 27
+
+20-24 : 22
+
+10-19 : 15
+
+2-9 : 6
+
+0-1 : 0
+
+B<gatk> -- Puts quality scores into one of four bins (these were deduced from
+various Broad Institute documents but are not guaranteed to be the same as
+those used by GATK):
+
+>= 33 : 40
+
+23-32 : 30
+
+13-22 : 20
+
+3-12 : 10
+
+0-2 : 0
+
+B<colord> -- Puts quality scores into one of four bins according to the CoLoRd
+preprint (used for long read compression) -- note that CoLoRd uses dynamic
+output values to keep the same same average quality, but here they are hard-coded):
+
+>= 26 : 40
+
+14-25 : 20
+
+7-13 : 10
+
+1-6 : 3
+
+0 : 0
+
+=item B<--help>
+
+Display this usage page
+
+=item B<--version>
+
+Print version information
+
+=back
+
 
 =head1 CAVEATS AND BUGS
 

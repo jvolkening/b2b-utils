@@ -8,6 +8,7 @@ use autodie;
 use BioX::Seq::Stream;
 use Cwd qw/abs_path getcwd/;
 use File::Basename qw/basename/;
+use File::Copy qw/copy/;
 use File::Temp;
 use Getopt::Long;
 use IPC::Cmd qw/can_run run/;
@@ -15,29 +16,33 @@ use Pod::Usage;
 
 #-inputs---------------------------------------------------------------------#
 my $fi_reads;
+my $fi_consensus;
 #-outputs--------------------------------------------------------------------#
 my $fo_consensus;
 #-knobs----------------------------------------------------------------------#
-my $threads = 1;
-my $n_racon = 3;
+my $threads  = 1;
+my $n_racon  = 3;
 my $n_medaka = 1;
 my $quiet    = 0;
 my $min_cov  = 2;
+my $mask_below;
 
 my $PROGRAM = 'minimeta';
-my $VERSION = 0.001;
+my $VERSION = 0.002;
 
 GetOptions(
 
     #-inputs-----------------------------------------------------------------#
-    'in=s' => \$fi_reads,
+    'in=s'       => \$fi_reads,
+    'assembly=s' => \$fi_consensus,
     #-outputs----------------------------------------------------------------#
     'out=s' => \$fo_consensus,
     #-knobs------------------------------------------------------------------#
     'threads=i'     => \$threads,
     'n_racon=i'     => \$n_racon,
     'n_medaka=i'    => \$n_medaka,
-    'min_cov=i'     => \$min_cov,,
+    'min_cov=i'     => \$min_cov,
+    'mask_below=i'  => \$mask_below,
     'quiet'         => \$quiet,
     'help'          => sub{ pod2usage(-verbose => 2); },
     'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
@@ -53,16 +58,22 @@ my $RACON = can_run('racon')
     // die "Racon is required but not found\n";
 my $MEDAKA = can_run('medaka_consensus')
     // die "Medaka is required but not found\n";
-my $AWK = can_run('awk')
-    // die "Awk is required but not found\n";
-my $FOLD = can_run('fold')
-    // die "Fold is required but not found\n";
+my $SAMTOOLS = can_run('samtools')
+    // die "Samtools is required but not found\n";
+my $BEDTOOLS = can_run('bedtools')
+    // die "Bedtools is required but not found\n";
 
 # globals
 
 die "Must define existing input file (--in)\n"
     if (! defined $fi_reads || ! -r $fi_reads);
 $fi_reads = abs_path($fi_reads);
+
+if (defined $fi_consensus) {
+    die "Input assembly not found or readable\n"
+        if (! -r $fi_consensus);
+    $fi_consensus = abs_path($fi_consensus);
+}
 
 if (defined $fo_consensus) {
     $fo_consensus = abs_path($fo_consensus);
@@ -76,12 +87,18 @@ chdir $wd;
 symlink $fi_reads, $in_base;
 
 # initial assembly
-plog( 'assembly', 'Initial assembly with miniasm' );
-my $ts = time;
-map_ava( $in_base, 'init.paf' );
-miniasm( $in_base, 'init.paf', 'init.fa' );
-my $el = time - $ts;
-plog( 'assembly', "Assembly took $el s" );
+if (defined $fi_consensus) {
+    copy $fi_consensus, 'init.fa';
+    plog( 'assembly', "Using provided assembly" );
+}
+else {
+    plog( 'assembly', 'Initial assembly with miniasm' );
+    my $ts = time;
+    map_ava( $in_base, 'init.paf' );
+    miniasm( $in_base, 'init.paf', 'init.fa' );
+    my $el = time - $ts;
+    plog( 'assembly', "Assembly took $el s" );
+}
 
 # racon polishing
 my $curr_cons = 'init.fa';
@@ -102,9 +119,10 @@ plog( 'medaka', "Polishing with medaka ($n_medaka rounds total)" );
 for my $i (1..$n_medaka) {
 
     # on final round, write to final output target
-    my $new_cons = $i == $n_medaka
-        ? $fo_consensus
-        : "md$i.fa";
+    #my $new_cons = $i == $n_medaka
+        #? $fo_consensus
+        #: "md$i.fa";
+    my $new_cons = "md$i.fa";
 
     my $ts = time;
     polish_medaka( $in_base, $curr_cons, $new_cons);
@@ -114,11 +132,36 @@ for my $i (1..$n_medaka) {
     $curr_cons = $new_cons;
 }
 
-# minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
-# racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
+if (defined $mask_below) {
+
+    plog( 'mask', "Masking regions with coverage below $mask_below" );
+    my $new_cons = "mask.fa";
+
+    my $ts = time;
+    mask_below($in_base, $curr_cons, $new_cons, $mask_below);
+    my $el = time - $ts;
+    plog( 'mask', "Masking took $el s" );
+
+    $curr_cons = $new_cons;
+
+}
+
+# copy to final location
+open my $in, '<', $curr_cons;
+my $fh_out = \*STDOUT;
+if (defined $fo_consensus) {
+    open my $fh, '>', $fo_consensus;
+    $fh_out = $fh;
+}
+while (my $line = <$in>) {
+    print {$fh_out} $line;
+}
 
 chdir $init_dir;
 exit;
+
+# minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
+# racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
 
 # minimap2 -x ava-ont trimmed.fq trimmed.fq > trim.paf
 sub map_ava {
@@ -126,7 +169,7 @@ sub map_ava {
     my ($fi, $fo) = @_;
 
     my @cmd = (
-        'minimap2',
+        $MINIMAP2,
         '-t' => $threads,
         '-x' => 'ava-ont',
         '-o' => $fo,
@@ -137,13 +180,12 @@ sub map_ava {
         or die "Initial AVA mapping failed: $!";
 }
 
-# miniasm -s 200 -c 1 -e 2 -I 0.2 -f trimmed.fq trim.paf | awk '/^S/{print ">"$2" "$4"\n"$3}' | fold > trim.fa
 sub miniasm {
     
     my ($fi_reads, $fi_paf, $fo) = @_;
 
     my @cmd = (
-        'miniasm',
+        $MINIASM,
         '-s' => '200',
         '-c' => $min_cov,
         '-I' => '0.2',
@@ -184,7 +226,7 @@ sub polish_racon {
     # map reads against existing consensus
     # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
     my @cmd_mm = (
-        'minimap2',
+        $MINIMAP2,
         '-t' => $threads,
         '-a',
         '-x' => 'map-ont',
@@ -198,7 +240,7 @@ sub polish_racon {
     # call new consensus with Racon
     # racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
     my @cmd_rc = (
-        'racon',
+        $RACON,
         '--threads'       => $threads,
         '--match'         => 8,
         '--mismatch'      => '-6',
@@ -234,14 +276,13 @@ sub polish_medaka {
     my ($fi_reads, $fi_cons, $fo_cons) = @_;
 
     my @cmd = (
-        'medaka_consensus',
+        $MEDAKA,
         '-t' => $threads,
         '-f',
         '-i' => $fi_reads,
         '-d' => $fi_cons,
         '-o' => 'polished',
     );
-    warn "@cmd\n";
     run( command => \@cmd )
         or die "Call to medaka failed: $!";
 
@@ -257,7 +298,7 @@ sub polish_medaka {
     my %annots;
     my $p = BioX::Seq::Stream->new($fi_cons);
     while (my $seq = $p->next_seq) {
-        $annots{$seq->id} = $seq->desc;
+        $annots{$seq->id} = $seq->desc // '';
     }
     # copy annotations to output contigs
     $p = BioX::Seq::Stream->new('polished/consensus.fasta');
@@ -267,9 +308,76 @@ sub polish_medaka {
         my $l = length $seq;
         $tags =~ s/\bLN:i:\d+\b/LN:i:$l/;
         $seq->desc = join ' ',
-            grep {defined $_} $seq->desc, $tags;
+            grep {defined $_ && length $_} $seq->desc, $tags;
         print {$fh_out} $seq->as_fasta;
     }
+
+}
+
+sub mask_below {
+    
+    my ($fi_reads, $fi_cons, $fo_cons, $min_depth) = @_;
+
+    # map reads against existing consensus
+    # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
+    my @cmd_mm = (
+        $MINIMAP2,
+        '-t' => $threads,
+        '-a',
+        '-x' => 'map-ont',
+        '-o' => 'mask.sam',
+        $fi_cons,
+        $fi_reads,
+    );
+    run( command => \@cmd_mm )
+        or die "consensus read mapping failed: $!";
+
+    my @cmd_sort = (
+        $SAMTOOLS,
+        'sort',
+        '--threads' => $threads,
+        '-o' => 'sorted.bam',
+        'mask.sam',
+    );
+    run( command => \@cmd_sort )
+        or die "SAM sorting failed: $!";
+
+    my @cmd_cov = (
+        $BEDTOOLS,
+        'genomecov',
+        '-ibam' => 'sorted.bam',
+        '-split',
+        '-bga',
+    );
+    my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+        = run( command => \@cmd_cov );
+    die "Error running bedtools genomecov: $error_message"
+        if (! $success);
+
+    open my $out, '>', 'mask.bed';
+    # this hack is necessary to process output by line; otherwise buffering can
+    # cause incomplete lines to be processed
+    my $stdout = join '', @{ $stdout_buf};
+    open my $stream, '<', \$stdout;
+    while (my $line = <$stream>) {
+        chomp $line;
+        my @fields = split "\t", $line;
+        next if ($fields[3] >= $min_depth);
+        say {$out} $line;
+    }
+    close $out;
+    close $stream;
+
+    # mask consensus
+    my @cmd_mask = (
+        $BEDTOOLS,
+        'maskfasta',
+        '-fi' => $fi_cons,
+        '-bed' => 'mask.bed',
+        '-fo' => $fo_cons,
+    );
+    run( command => \@cmd_mask )
+        or die "Error running bedtools maskfasta: $!";
 
 }
 
@@ -320,19 +428,26 @@ as well as the following binaries:
 
 =item * medaka
 
-=item * core *nix utils (awk, fold)
+=item * samtools
+
+=item * bcftools
 
 =back
 
 =head1 OPTIONS
 
-=head2 Input (required)
+=head2 Input
 
 =over 4
 
 =item B<--in> I<filename>
 
-Path to input reads in FASTx format
+Path to input reads in FASTx format (required)
+
+=item B<--assembly> I<filename>
+
+Path to existing assembly. If provided, assembly is skipped and only polishing
+is performed.
 
 =back
 
@@ -340,7 +455,7 @@ Path to input reads in FASTx format
 
 =over 4
 
-=item B<--out>
+=item B<--out> I<filename>
 
 Path to write consensus sequence to (as FASTA) [default: STDOUT]
 
@@ -350,19 +465,24 @@ Path to write consensus sequence to (as FASTA) [default: STDOUT]
 
 =over 4
 
-=item B<--min_cov>
+=item B<--min_cov> I<integer>
 
 Minimum read coverage required by assembler to keep position
 
-=item B<--threads>
+=item B<--mask_below> I<integer>
+
+If given, final assembly positions with coverage depth below this value will
+be hard masked with 'N' (defualt: off)
+
+=item B<--threads> I<integer>
 
 Number of processsing threads to use for mapping and polishing
 
-=item B<--n_racon>
+=item B<--n_racon> I<integer>
 
 Number of Racon polishing rounds to perform (default: 3)
 
-=item B<--n_medaka>
+=item B<--n_medaka> I<integer>
 
 Number of Medaka polishing rounds to perform (default: 1)
 

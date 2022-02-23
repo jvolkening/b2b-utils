@@ -61,9 +61,9 @@ while (my $read1 = $parser1->next_seq) {
     if ($rename || $check) {
 
         my $base1 = $read1->id;
-        $base1 =~ s/(?:\/[12])?(?:\s.+$|$)//;
+        $base1 =~ s/(?:\/1])?(?:\s.+$|$)//;
         my $base2 = $read2->id;
-        $base2 =~ s/(?:\/[12])?(?:\s.+$|$)//;
+        $base2 =~ s/(?:\/[23])?(?:\s.+$|$)//;
 
         if ($check) {
             die "read pair mismatch ($base1)" if ($base1 ne $base2);

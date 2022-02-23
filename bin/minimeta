@@ -17,6 +17,7 @@ use Pod::Usage;
 #-inputs---------------------------------------------------------------------#
 my $fi_reads;
 my $fi_consensus;
+my $fi_homopolish;
 #-outputs--------------------------------------------------------------------#
 my $fo_consensus;
 #-knobs----------------------------------------------------------------------#
@@ -25,6 +26,8 @@ my $n_racon  = 3;
 my $n_medaka = 1;
 my $quiet    = 0;
 my $min_cov  = 2;
+my $hp_model = 'R9.4.pkl';
+my $med_model;
 my $mask_below;
 
 my $PROGRAM = 'minimeta';
@@ -33,35 +36,57 @@ my $VERSION = 0.002;
 GetOptions(
 
     #-inputs-----------------------------------------------------------------#
-    'in=s'       => \$fi_reads,
-    'assembly=s' => \$fi_consensus,
+    'in=s'         => \$fi_reads,
+    'assembly=s'   => \$fi_consensus,
+    'homopolish=s' => \$fi_homopolish,
     #-outputs----------------------------------------------------------------#
     'out=s' => \$fo_consensus,
     #-knobs------------------------------------------------------------------#
-    'threads=i'     => \$threads,
-    'n_racon=i'     => \$n_racon,
-    'n_medaka=i'    => \$n_medaka,
-    'min_cov=i'     => \$min_cov,
-    'mask_below=i'  => \$mask_below,
-    'quiet'         => \$quiet,
-    'help'          => sub{ pod2usage(-verbose => 2); },
-    'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+    'threads=i'      => \$threads,
+    'n_racon=i'      => \$n_racon,
+    'n_medaka=i'     => \$n_medaka,
+    'min_cov=i'      => \$min_cov,
+    'mask_below=i'   => \$mask_below,
+    'hp_model=s'     => \$hp_model,
+    'medaka_model=s' => \$med_model,
+    'quiet'          => \$quiet,
+    'help'           => sub{ pod2usage(-verbose => 2); },
+    'version'        => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
 
 ) or pod2usage( -verbose => 1);
 
 # check for required software
 my $MINIMAP2 = can_run('minimap2')
     // die "Minimap2 is required but not found\n";
-my $MINIASM = can_run('miniasm')
-    // die "Miniasm is required but not found\n";
-my $RACON = can_run('racon')
-    // die "Racon is required but not found\n";
-my $MEDAKA = can_run('medaka_consensus')
-    // die "Medaka is required but not found\n";
-my $SAMTOOLS = can_run('samtools')
-    // die "Samtools is required but not found\n";
-my $BEDTOOLS = can_run('bedtools')
-    // die "Bedtools is required but not found\n";
+
+my $MINIASM = can_run('miniasm');
+if (! defined $fi_consensus && ! defined $MINIASM) {
+    die "Miniasm is required but not found\n";
+}
+
+my $RACON = can_run('racon');
+if ($n_racon > 0 && ! defined $RACON) {
+    die "Racon is required but not found\n";
+}
+
+my $MEDAKA = can_run('medaka_consensus');
+if ($n_medaka > 0 && ! defined $MEDAKA) {
+    die "Medaka is required but not found\n";
+}
+my $SAMTOOLS = can_run('samtools');
+if (defined $mask_below && ! defined $SAMTOOLS) {
+    die "Samtools is required but not found\n";
+}
+
+my $BEDTOOLS = can_run('bedtools');
+if (defined $mask_below && ! defined $BEDTOOLS) {
+    die "Bedtools is required but not found\n";
+}
+
+my $HOMOPOLISH = can_run('homopolish');
+if (defined $fi_homopolish && ! defined $HOMOPOLISH) {
+    die "Homopolish is required but not found\n";
+}
 
 # globals
 
@@ -73,6 +98,12 @@ if (defined $fi_consensus) {
     die "Input assembly not found or readable\n"
         if (! -r $fi_consensus);
     $fi_consensus = abs_path($fi_consensus);
+}
+
+if (defined $fi_homopolish) {
+    die "Homopolish reference not found or readable\n"
+        if (! -r $fi_homopolish);
+    $fi_homopolish = abs_path($fi_homopolish);
 }
 
 if (defined $fo_consensus) {
@@ -114,14 +145,25 @@ for my $i (1..$n_racon) {
     $curr_cons = $new_cons;
 }
 
+if (defined $fi_homopolish) {
+
+    # homopolishing
+    plog( 'homopolish', "Polishing with homopolish" );
+    my $new_cons = "hp.fa";
+
+    my $ts = time;
+    homopolish( $fi_homopolish, $curr_cons, $new_cons);
+    my $el = time - $ts;
+    plog( 'homopolish', "Took $el s" );
+
+    $curr_cons = $new_cons;
+
+}
+
 # medaka polishing
 plog( 'medaka', "Polishing with medaka ($n_medaka rounds total)" );
 for my $i (1..$n_medaka) {
 
-    # on final round, write to final output target
-    #my $new_cons = $i == $n_medaka
-        #? $fo_consensus
-        #: "md$i.fa";
     my $new_cons = "md$i.fa";
 
     my $ts = time;
@@ -283,34 +325,51 @@ sub polish_medaka {
         '-d' => $fi_cons,
         '-o' => 'polished',
     );
+    if (defined $med_model) {
+        push @cmd, '-m' => $med_model;
+    }
     run( command => \@cmd )
         or die "Call to medaka failed: $!";
 
     # transfer annotations dropped by Medaka
+    transfer_annots(
+        $fi_cons,
+        'polished/consensus.fasta',
+        $fo_cons
+    );
 
-    my $fh_out = \*STDOUT;
-    if (defined $fo_cons) {
-        open my $fh, '>', $fo_cons;
-        $fh_out = $fh;
-    }
+}
+
+sub transfer_annots {
+
+    my ($fn_old, $fn_new, $fn_out, $strip_suffix) = @_;
+
+    open my $fh_out, '>', $fn_out;
 
     # read annotations from input contigs
     my %annots;
-    my $p = BioX::Seq::Stream->new($fi_cons);
+    my $p = BioX::Seq::Stream->new($fn_old);
     while (my $seq = $p->next_seq) {
         $annots{$seq->id} = $seq->desc // '';
     }
     # copy annotations to output contigs
-    $p = BioX::Seq::Stream->new('polished/consensus.fasta');
+    $p = BioX::Seq::Stream->new($fn_new);
     while (my $seq = $p->next_seq) {
-        my $tags = $annots{$seq->id}
-            // die "Missing annotations for contig " . $seq->id;
+        my $id = $seq->id;
+        if (defined $strip_suffix) {
+            $id =~ s/$strip_suffix$//;
+            $seq->id = $id;
+        }
+        my $tags = $annots{$id}
+            // die "Missing annotations for contig " . $id;
         my $l = length $seq;
         $tags =~ s/\bLN:i:\d+\b/LN:i:$l/;
         $seq->desc = join ' ',
             grep {defined $_ && length $_} $seq->desc, $tags;
         print {$fh_out} $seq->as_fasta;
     }
+
+    close $fh_out;
 
 }
 
@@ -381,6 +440,38 @@ sub mask_below {
 
 }
 
+sub homopolish {
+    
+    my ($fi_ref, $fi_cons, $fo_cons) = @_;
+
+    my @cmd_hp = (
+        $HOMOPOLISH,
+        'polish',
+        '-a' => $fi_cons,
+        '-l' => $fi_ref,
+        '-m' => $hp_model,
+        '--minimap_args' => 'map-ont',
+        '-o' => 'hp',
+    );
+    run( command => \@cmd_hp )
+        or die "homopolish failed: $!";
+
+    my $basename = basename($fi_cons);
+    $basename =~ s/\..*//;
+    my $hp_out = "hp/${basename}_homopolished.fasta";
+    die "Missing homopolish output file\n"
+        if (! -e $hp_out);
+
+    # transfer annotations dropped by homopolish
+    transfer_annots(
+        $fi_cons,
+        $hp_out,
+        $fo_cons,
+        '_polish',
+    );
+
+}
+
 sub plog {
 
     my ($unit, $msg) = @_;
@@ -447,7 +538,12 @@ Path to input reads in FASTx format (required)
 =item B<--assembly> I<filename>
 
 Path to existing assembly. If provided, assembly is skipped and only polishing
-is performed.
+is performed (default: none).
+
+=item B<--homopolish> I<filename>
+
+Path to reference FASTA file used by homopolish. Providing this filename also
+triggers polishing using homopolish (default: none).
 
 =back
 
@@ -467,7 +563,7 @@ Path to write consensus sequence to (as FASTA) [default: STDOUT]
 
 =item B<--min_cov> I<integer>
 
-Minimum read coverage required by assembler to keep position
+Minimum read coverage required by assembler to keep position (default: 2)
 
 =item B<--mask_below> I<integer>
 
@@ -476,7 +572,7 @@ be hard masked with 'N' (defualt: off)
 
 =item B<--threads> I<integer>
 
-Number of processsing threads to use for mapping and polishing
+Number of processsing threads to use for mapping and polishing (default: 1)
 
 =item B<--n_racon> I<integer>
 
@@ -485,6 +581,11 @@ Number of Racon polishing rounds to perform (default: 3)
 =item B<--n_medaka> I<integer>
 
 Number of Medaka polishing rounds to perform (default: 1)
+
+=item B<--hp_model> I<string>
+
+Name of model to be used by homopolish. Has no effect if B<--homopolish> not
+used (default: R9.4.pkl).
 
 =item B<--quiet>
 

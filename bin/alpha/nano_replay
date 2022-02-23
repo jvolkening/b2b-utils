@@ -37,7 +37,7 @@ my $n = 0;
 while (my $seq = $p->next_seq) {
     ++$n;
     my $desc = $seq->desc;
-    if ($desc =~ /start_time=([\d\-\:TZ]+)/) {
+    if ($desc =~ /\bstart_time=([\d\-\:TZ]+)/) {
         my $t = Time::Piece->strptime($1, "%Y-%m-%dT%H:%M:%SZ");
         my $e = $t->epoch;
         $seqs{$seq->id} = {
@@ -45,11 +45,15 @@ while (my $seq = $p->next_seq) {
             time => $e,
         };
     }
+    else {
+        die "Failed to parse start_time from FASTQ header\n";
+    }
     last if (defined $max_seqs && $n >= $max_seqs);
 }
 
-
-my @sorted_ids = sort {$seqs{$a}->{time} <=> $seqs{$b}->{time}} keys %seqs;
+my @sorted_ids = sort {
+    $seqs{$a}->{time} <=> $seqs{$b}->{time}
+} keys %seqs;
 
 my $start_time = $seqs{$sorted_ids[0]}->{time};
 
@@ -74,7 +78,7 @@ while ($i < scalar(@sorted_ids)) {
     push @chunks, $chunk;
     push @elapsed, ($last_time-$start_time)/$speedup;
     $start_time = $last_time;
-    $i += $chunk_size;
+    $i = $last + 1;
 }
 
 for my $i (0..$#elapsed) {

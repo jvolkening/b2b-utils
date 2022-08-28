@@ -26,12 +26,15 @@ my $n_racon  = 3;
 my $n_medaka = 1;
 my $quiet    = 0;
 my $min_cov  = 2;
+my $min_len  = 1;
 my $hp_model = 'R9.4.pkl';
 my $med_model;
 my $mask_below;
+my $split_below;
+my $only_split_at_hp = 0;
 
 my $PROGRAM = 'minimeta';
-my $VERSION = 0.002;
+my $VERSION = 0.004;
 
 GetOptions(
 
@@ -42,16 +45,19 @@ GetOptions(
     #-outputs----------------------------------------------------------------#
     'out=s' => \$fo_consensus,
     #-knobs------------------------------------------------------------------#
-    'threads=i'      => \$threads,
-    'n_racon=i'      => \$n_racon,
-    'n_medaka=i'     => \$n_medaka,
-    'min_cov=i'      => \$min_cov,
-    'mask_below=i'   => \$mask_below,
-    'hp_model=s'     => \$hp_model,
-    'medaka_model=s' => \$med_model,
-    'quiet'          => \$quiet,
-    'help'           => sub{ pod2usage(-verbose => 2); },
-    'version'        => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+    'threads=i'        => \$threads,
+    'n_racon=i'        => \$n_racon,
+    'n_medaka=i'       => \$n_medaka,
+    'min_cov=i'        => \$min_cov,
+    'min_len=i'        => \$min_len,
+    'mask_below=i'     => \$mask_below,
+    'split_below=i'    => \$split_below,
+    'hp_model=s'       => \$hp_model,
+    'medaka_model=s'   => \$med_model,
+    'only_split_at_hp' => \$only_split_at_hp,
+    'quiet'            => \$quiet,
+    'help'             => sub{ pod2usage(-verbose => 2); },
+    'version'          => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
 
 ) or pod2usage( -verbose => 1);
 
@@ -73,13 +79,14 @@ my $MEDAKA = can_run('medaka_consensus');
 if ($n_medaka > 0 && ! defined $MEDAKA) {
     die "Medaka is required but not found\n";
 }
+
 my $SAMTOOLS = can_run('samtools');
-if (defined $mask_below && ! defined $SAMTOOLS) {
+if ((defined $mask_below || defined $split_below) && ! defined $SAMTOOLS) {
     die "Samtools is required but not found\n";
 }
 
 my $BEDTOOLS = can_run('bedtools');
-if (defined $mask_below && ! defined $BEDTOOLS) {
+if ((defined $mask_below || defined $split_below) && ! defined $BEDTOOLS) {
     die "Bedtools is required but not found\n";
 }
 
@@ -113,26 +120,37 @@ if (defined $fo_consensus) {
 # work in scratch space
 my $init_dir = abs_path(getcwd());
 my $in_base = basename($fi_reads);
-my $wd =  File::Temp->newdir(CLEANUP => 0,DIR => "$ENV{HOME}/.tmp");
+my $wd =  File::Temp->newdir(CLEANUP => 1);
 chdir $wd;
 symlink $fi_reads, $in_base;
 
+my $curr_cons = 'init.fa';
+
 # initial assembly
 if (defined $fi_consensus) {
-    copy $fi_consensus, 'init.fa';
+    copy $fi_consensus, $curr_cons;
     plog( 'assembly', "Using provided assembly" );
 }
 else {
     plog( 'assembly', 'Initial assembly with miniasm' );
     my $ts = time;
     map_ava( $in_base, 'init.paf' );
-    miniasm( $in_base, 'init.paf', 'init.fa' );
+    miniasm( $in_base, 'init.paf', $curr_cons );
     my $el = time - $ts;
     plog( 'assembly', "Assembly took $el s" );
 }
 
+# bail out gracefully if initial assembly is empty
+if (! -s $curr_cons) {
+    plog( 'assembly', "Initial assembly empty, skipping polishing" );
+    if (defined $fo_consensus) {
+        copy $curr_cons, $fo_consensus;
+    }
+    chdir $init_dir;
+    exit;
+}
+
 # racon polishing
-my $curr_cons = 'init.fa';
 plog( 'racon', "Polishing with racon ($n_racon rounds total)" );
 for my $i (1..$n_racon) {
     my $new_cons = "rc$i.fa";
@@ -174,6 +192,20 @@ for my $i (1..$n_medaka) {
     $curr_cons = $new_cons;
 }
 
+if (defined $split_below) {
+
+    plog( 'split', "Splitting at regions with coverage below $split_below" );
+    my $new_cons = "split.fa";
+
+    my $ts = time;
+    split_below($in_base, $curr_cons, $new_cons, $split_below);
+    my $el = time - $ts;
+    plog( 'split', "Splitting took $el s" );
+
+    $curr_cons = $new_cons;
+
+}
+
 if (defined $mask_below) {
 
     plog( 'mask', "Masking regions with coverage below $mask_below" );
@@ -183,6 +215,21 @@ if (defined $mask_below) {
     mask_below($in_base, $curr_cons, $new_cons, $mask_below);
     my $el = time - $ts;
     plog( 'mask', "Masking took $el s" );
+
+    $curr_cons = $new_cons;
+
+}
+
+#always run this, and run it last, since we rename the contigs as well
+if (1) {
+
+    plog( 'filter', "Filtering contigs shorter than $min_len" );
+    my $new_cons = "filtered.fa";
+
+    my $ts = time;
+    filter_short($curr_cons, $new_cons, $min_len);
+    my $el = time - $ts;
+    plog( 'filter', "Filtering took $el s" );
 
     $curr_cons = $new_cons;
 
@@ -222,6 +269,113 @@ sub map_ava {
         or die "Initial AVA mapping failed: $!";
 }
 
+sub split_below {
+    
+    my ($fi_reads, $fi_cons, $fo_cons, $split_below) = @_;
+
+    # map reads against existing consensus
+    # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
+    my @cmd_mm = (
+        $MINIMAP2,
+        '-t' => $threads,
+        '-a',
+        '-x' => 'map-ont',
+        '-o' => 'split.sam',
+        $fi_cons,
+        $fi_reads,
+    );
+    run( command => \@cmd_mm )
+        or die "consensus read mapping failed: $!";
+
+    my @cmd_sort = (
+        $SAMTOOLS,
+        'sort',
+        '--threads' => $threads,
+        '-o' => 'sorted.bam',
+        'split.sam',
+    );
+    run( command => \@cmd_sort )
+        or die "SAM sorting failed: $!";
+
+
+    my @cmd_cov = (
+        $BEDTOOLS,
+        'genomecov',
+        '-ibam' => 'sorted.bam',
+        '-split',
+        '-bga',
+    );
+    my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+        = run( command => \@cmd_cov );
+    die "Error running bedtools genomecov: $error_message"
+        if (! $success);
+
+    my %split_points;
+    # this hack is necessary to process output by line; otherwise buffering can
+    # cause incomplete lines to be processed
+    my $stdout = join '', @{ $stdout_buf};
+    open my $stream, '<', \$stdout;
+    while (my $line = <$stream>) {
+        chomp $line;
+        my @fields = split "\t", $line;
+        next if ($fields[3] >= $split_below);
+        push @{ $split_points{$fields[0]} }, [$fields[1]+1, $fields[2]];
+    }
+    close $stream;
+
+    open my $out, '>', $fo_cons;
+
+    my $p = BioX::Seq::Stream->new($fi_cons);
+    CHR:
+    while (my $seq = $p->next_seq) {
+
+        my $chr = $seq->id;
+        my @points = defined $split_points{$chr}
+            ? @{ $split_points{$chr} }
+            : ();
+        if ($only_split_at_hp) {
+            my @new;
+            my $win = 5;
+            for my $p (@points) {
+                my $hp = 0;
+                for (@$p) {
+                    my $l = $_ > $win ? $_-$win : 1;
+                    my $r = length($seq) - $_ > $win ? $_+$win : length($seq);
+                    my $s = $seq->range($l, $r);
+                    ++$hp if ($s->seq =~ /(\w)(\1{3,})/);
+                }
+                push @new, $p if ($hp > 0);
+            }
+            @points = @new;
+        }
+        if (! scalar @points) {
+            print {$out} $seq->as_fasta;
+            next CHR;
+        }
+        my $i = 1;
+        for my $p (@points) {
+            if ($p->[0] >= $i) {
+                my $sub = $seq->range($i, $p->[0]-1);
+                my $l = length $sub;
+                $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
+                print {$out} $sub->as_fasta;
+            }
+            $i = $p->[1] + 1;
+        }
+        if ($i <= length($seq)) {
+            my $sub = $seq->range($i, length($seq));
+            my $l = length $sub;
+            $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
+            print {$out} $sub->as_fasta;
+        }
+
+    }
+            
+    close $out;
+
+}
+    
+
 sub miniasm {
     
     my ($fi_reads, $fi_paf, $fo) = @_;
@@ -230,6 +384,7 @@ sub miniasm {
         $MINIASM,
         '-s' => '200',
         '-c' => $min_cov,
+        '-e' => 1,
         '-I' => '0.2',
         '-f' => $fi_reads,
         $fi_paf,
@@ -440,6 +595,28 @@ sub mask_below {
 
 }
 
+sub filter_short {
+    
+    my ($fi_cons, $fo_cons, $min_len) = @_;
+
+    my $p = BioX::Seq::Stream->new($fi_cons);
+    my @final;
+    while (my $seq = $p->next_seq) {
+        next if (length $seq < $min_len);
+        push @final, $seq;
+    }
+
+    my $padding = length (scalar @final - 1);
+    my $i = 0; 
+    open my $out, '>', $fo_cons;
+    for my $ctg (sort {length($b) <=> length($a)} @final) {
+        $ctg->id = sprintf "ctg_%0${padding}s", $i++;
+        print {$out} $ctg->as_fasta;
+    }
+    close $out;
+
+}
+
 sub homopolish {
     
     my ($fi_ref, $fi_cons, $fo_cons) = @_;
@@ -565,10 +742,25 @@ Path to write consensus sequence to (as FASTA) [default: STDOUT]
 
 Minimum read coverage required by assembler to keep position (default: 2)
 
+=item B<--min_len> I<integer>
+
+Minimum contig length to keep (default: 1)
+
 =item B<--mask_below> I<integer>
 
 If given, final assembly positions with coverage depth below this value will
-be hard masked with 'N' (defualt: off)
+be hard masked with 'N' (default: off)
+
+=item B<--split_below> I<integer>
+
+If given, contigs will be split at regions with coverage lower than this depth
+(default: off)
+
+=item B<--only_split_at_hp>
+
+If given in conjuction with C<--split_below>, only splits low coverage regions
+if one or both junctions is at a homopolymer stretch
+(default: off)
 
 =item B<--threads> I<integer>
 

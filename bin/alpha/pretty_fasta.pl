@@ -12,11 +12,13 @@ use Getopt::Long;
 my $width = 60;
 my $fn_in;
 my $fn_out;
+my $fix_case;
 
 GetOptions(
-    'in=s'    => \$fn_in,
-    'out=s'   => \$fn_out,
-    'width=i' => \$width,
+    'in=s'     => \$fn_in,
+    'out=s'    => \$fn_out,
+    'width=i'  => \$width,
+    'fix_case' => \$fix_case,
 );
 
 my $p = BioX::Seq::Stream->new($fn_in);
@@ -27,6 +29,8 @@ if (defined $fn_out) {
 }
 
 while (my $seq = $p->next_seq) {
+    $seq->seq = uc $seq->seq
+        if ($fix_case);
     print {$out} $seq->as_fasta($width);
 }
 
@@ -69,7 +73,7 @@ Jeremy Volkening (jdv@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014-18 Jeremy Volkening
+Copyright 2014-22 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

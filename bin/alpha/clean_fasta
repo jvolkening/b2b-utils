@@ -1,0 +1,25 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use BioX::Seq::Stream;
+use File::Copy qw/move/;
+use File::Temp;
+
+my $fn = $ARGV[0]
+    // die "Must specify input filename\n";
+die "Error finding or opening input file: $fn\n"
+    if (! -r $fn);
+
+my $tmp = File::Temp->new(UNLINK => 1);
+
+my $p = BioX::Seq::Stream->new($fn);
+while (my $seq = $p->next_seq) {
+    print {$tmp} $seq->as_fasta;
+}
+close $tmp;
+move "$tmp" => $fn;
+exit;

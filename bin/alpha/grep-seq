@@ -1,0 +1,86 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use BioX::Seq::Stream;
+use BioX::Seq::Utils qw/rev_com/;
+use Getopt::Long;
+
+my $context = 10;
+
+GetOptions(
+    'context=i' => \$context,
+);
+
+my $string = shift @ARGV
+    // die "Missing search string";
+$string = uc $string;
+my $rc = rev_com($string);
+
+my $fn = shift @ARGV; # can be undef
+
+my $p = BioX::Seq::Stream->new($fn);
+
+while (my $seq = $p->next_seq) {
+    my $l = length $seq;
+    my $uc = uc $seq->seq;
+    if ($uc =~ /$string/) {
+        my $s = $-[0] + 1;
+        my $e = $+[0];
+        my $match = $seq->range($s, $e)->seq;
+        my $s5 = $s - $context;
+        my $e5= $s - 1;
+        $s5 = 1 if ($s5 < 1);
+        $e5 = 1 if ($e5 < 1);
+        my $pre = $s > 1
+            ? $seq->range($s5, $e5)->seq
+            : '';
+        my $s3 = $e + 1;
+        my $e3= $e + $context;
+        $s3 = $l if ($s3 > $l);
+        $e3 = $l if ($e3 > $l);
+        my $post = $e < $l
+            ? $seq->range($s3, $e3)->seq
+            : '';
+        say join "\t",
+            $seq->id,
+            sprintf(
+                "%${context}s %s %-${context}s",
+                $pre,
+                $match,
+                $post
+            )
+        ;
+    }
+    elsif ($uc =~ /$rc/) {
+        my $s = $-[0] + 1;
+        my $e = $+[0];
+        my $match = $seq->range($s, $e)->rev_com()->seq;
+        my $s5 = $s - $context;
+        my $e5= $s - 1;
+        $s5 = 1 if ($s5 < 1);
+        $e5 = 1 if ($e5 < 1);
+        my $post = $s > 1
+            ? $seq->range($s5, $e5)->rev_com()->seq
+            : '';
+        my $s3 = $e + 1;
+        my $e3= $e + $context;
+        $s3 = $l if ($s3 > $l);
+        $e3 = $l if ($e3 > $l);
+        my $pre = $e < $l
+            ? $seq->range($s3, $e3)->rev_com()->seq
+            : '';
+        say join "\t",
+            $seq->id,
+            sprintf(
+                "%${context}s %s %-${context}s",
+                $pre,
+                $match,
+                $post
+            )
+        ;
+    }
+
+}

@@ -160,8 +160,13 @@ while (my $line = <$gff3>) {
             die "missing ID"     if (! defined $id);
 
             # ignore non-transcript types
-            die "missing parent" if (! defined $parent);
-            die "parent struct not found" if (! exists $struct{$parent});
+            if (! defined $parent) {
+                warn "missing parent for $id\n";
+                next LINE;
+            }
+            else {
+                die "parent struct not found for $id ($parent)" if (! exists $struct{$parent});
+            }
 
             $struct{$parent}->{transcripts}->{$id}->{cds}   = [];
             $struct{$parent}->{transcripts}->{$id}->{exons} = [];

@@ -1,9 +1,9 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
 
-use Bio::SeqIO;
+use BioX::Seq::Stream;
 use Carp;
 use Config;
 $Config{useithreads}
@@ -12,6 +12,7 @@ $Config{useithreads}
 use File::Temp;
 use Getopt::Long;
 use IPC::Open2;
+use POSIX qw/ceil/;
 use threads;
 use threads::shared;
 use Thread::Queue;
@@ -21,7 +22,7 @@ use IO::Handle;
 my $threads = 1;
 my $outfile;
 my $infile;
-my $chunk_size = 1;
+my $chunk_size;
 my $program;
 my $db;
 my $evalue = 1;
@@ -60,16 +61,27 @@ for (1..$threads) {
 }
 my $handler_thr = threads->create(\&handle_res);
 
+# calculate chunk size
+if (! defined $chunk_size) {
+    my $seq_stream = BioX::Seq::Stream->new( $infile );
+    my $n_seqs;
+    while (my $seq = $seq_stream->next_seq) {
+        ++$n_seqs;
+    }
+    $chunk_size = ceil($n_seqs/$threads);
+    warn "Calculated chunk_size: $chunk_size\n";
+}
+
 # populate seq queue from input fasta file
-my $seq_stream = Bio::SeqIO->new( -file => $infile );
+my $seq_stream = BioX::Seq::Stream->new( $infile );
 my $tmp_count = 1;
 my $tmp_string;
 my $queued;
 warn "Populating queue...\n";
-while (my $obj = $seq_stream->next_seq) {
-    my $id = $obj->primary_id;
-    my $desc = $obj->description;
-    my $seq = $obj->seq;
+while (my $seq = $seq_stream->next_seq) {
+    my $id = $seq->id;
+    my $desc = $seq->desc;
+    my $seq = $seq->seq;
     $tmp_string .= ">$id $desc\n$seq\n";
     if ($tmp_count%$chunk_size == 0) {
         $seq_queue->enqueue( $tmp_string);
@@ -116,7 +128,7 @@ sub run_blast {
         print {$tmp_out} "$query\n";
         close $tmp_out;
         my  $hits_string = $max_hits > 0 ? "-num_descriptions $max_hits -num_alignments $max_hits" : '';
-        system("$program -db $db -evalue $evalue $hits_string -query $tmp_out -out $tmp_in @other_opts");
+        system($program, '-db', $db, '-evalue', $evalue, '-query', $tmp_out, '-out', $tmp_in, @other_opts);
         my $res_string = '';
         while (my $line = <$tmp_in>) {
             $res_string .= $line;

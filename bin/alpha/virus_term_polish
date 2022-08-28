@@ -1,0 +1,241 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+
+use Getopt::Long;
+use BioX::Seq::Stream;
+use BioX::Seq::Utils qw/rev_com/;
+use List::Util qw/max/;
+
+my $fi_cons;
+my $fi_reads;
+my $t5;
+my $t3;
+my $min_depth = 1;
+my $end_trim = 3;
+my $tag_len = 15;
+my $max_trim = 20;
+my $max_ratio = 0.5;
+my $min_match_ratio = 0.2;
+my $min_match_count = 2;
+my $allow_partial_extend = 0;
+
+GetOptions(
+    'draft=s'     => \$fi_cons,
+    'reads=s'     => \$fi_reads,
+    't5=s'        => \$t5,
+    't3=s'        => \$t3,
+    'min_depth=i' => \$min_depth,
+    'end_trim=i'  => \$end_trim,
+    'tag_len=i'   => \$tag_len,
+    'max_trim=i'  => \$max_trim,
+    'max_ratio=f' => \$max_ratio,
+    'min_match_ratio=f' => \$min_match_ratio,
+    'min_match_count=i' => \$min_match_count,
+    'partial'     => \$allow_partial_extend,
+);
+
+$t5 = uc rev_com($t5);
+$t3 = uc $t3;
+
+my @contigs;
+my $draft = BioX::Seq::Stream->new($fi_cons);
+while (my $seq = $draft->next_seq) {
+    push @contigs, $seq;
+}
+
+my %status;
+my %tags;
+
+# First, check to see if the expected termini can already be found, and trim
+# any extra sequences up to a maximum length of --max_trim
+for my $ctg (@contigs) {
+
+    my $s = $ctg->seq;
+    my $l = length $s;
+
+    # 3' trim
+    if ($s =~ /$t3(.{0,$max_trim})$/) {
+        my $p_end = $-[1];
+        my $rm = length substr $s, $p_end, $l-$p_end, '';
+        $status{$ctg->id}->{3} = "Trim $rm";
+    }
+    # 5' trim
+    $l = length $s;
+    if (rev_com($s) =~ /$t5(.{0,$max_trim})$/) {
+        my $p_end = $-[1];
+        my $p_start = $l - $p_end;
+        my $rm = length substr $s, 0, $p_start, '';
+        $status{$ctg->id}->{5} = "Trim $rm";
+    }
+    $ctg->seq = $s;
+
+    my $id = $ctg->id;
+    $l = length $ctg;
+
+    $tags{$id}->{start} = rev_com( uc substr( $ctg, $end_trim, $tag_len) );
+    $tags{$id}->{end}   =  uc substr( $ctg, $l-$end_trim-$tag_len, $tag_len);
+
+}
+
+my %votes;
+my $p = BioX::Seq::Stream->new($fi_reads);
+
+while (my $read = $p->next_seq) {
+
+    my $read_str = uc $read->seq;
+    my $read_rc  = rev_com($read_str);
+
+    for my $ctg (@contigs) {
+
+        my $id = $ctg->id;
+
+        my $start_tag = $tags{$id}->{start};
+        my $end_tag = $tags{$id}->{end};
+
+        if (! defined $status{$id}->{5}) {
+            if ( $read_str =~ /$start_tag(.+)/) {
+                my $tail = $1;
+                push @{ $votes{$id}->{5} }, $tail;
+            }
+            elsif ( $read_rc =~ /$start_tag(.+)/) {
+                my $tail = $1;
+                push @{ $votes{$id}->{5} }, $tail;
+            }
+        }
+        if (! defined $status{$id}->{3}) {
+            if ( $read_str =~ /$end_tag(.+)/) {
+                my $tail = $1;
+                push @{ $votes{$id}->{3} }, $tail;
+            }
+            elsif ( $read_rc =~ /$end_tag(.+)/) {
+                my $tail = $1;
+                push @{ $votes{$id}->{3} }, $tail;
+            }
+        }
+
+    }
+}
+
+# Finally, check to see if any contigs have sufficient votes to be extended
+for my $ctg (@contigs) {
+
+    if (! defined $status{$ctg->id}->{5}) {
+
+        $status{$ctg->id}->{5} = "No change";
+        my @v = defined $votes{$ctg->id}->{5}
+            ? @{ $votes{$ctg->id}->{5} }
+            : ();
+        my ($cons, $depth) = consensus($t5, @v);
+        if ($cons =~ /^(.*$t5)/) {
+            my $add = $1;
+            my $l = length $add;
+            $status{$ctg->id}->{5} = "Extend $l ($depth)";
+            my $s = $ctg->seq;
+            substr $s, 0, $end_trim, '';
+            $s = rev_com($add) . $s;
+            $ctg->seq = $s;
+        }
+        elsif ($allow_partial_extend) {
+            my $add = $cons;
+            my $l = length $add;
+            $status{$ctg->id}->{5} = "Extend $l ($depth)";
+            my $s = $ctg->seq;
+            substr $s, 0, $end_trim, '';
+            $s = rev_com($add) . $s;
+            $ctg->seq = $s;
+        }
+    }
+    if (! defined $status{$ctg->id}->{3}) {
+
+        $status{$ctg->id}->{3} = "No change";
+        my @v = defined $votes{$ctg->id}->{3}
+            ? @{ $votes{$ctg->id}->{3} }
+            : ();
+        my ($cons, $depth) = consensus($t3, @v);
+        if ($cons =~ /^(.*$t3)/) {
+            my $add = $1;
+            my $l = length $add;
+            $status{$ctg->id}->{3} = "Extend $l ($depth)";
+            my $s = $ctg->seq;
+            substr $s, -$end_trim, $end_trim, '';
+            $s = $s . $add;
+            $ctg->seq = $s;
+        }
+        elsif ($allow_partial_extend) {
+            my $add = $cons;
+            my $l = length $add;
+            $status{$ctg->id}->{3} = "Extend $l ($depth)";
+            my $s = $ctg->seq;
+            substr $s, -$end_trim, $end_trim, '';
+            $s = $s . $add;
+            $ctg->seq = $s;
+        }
+
+    }
+
+    say STDERR join "\t",
+        $ctg->id,
+        $status{$ctg->id}->{5},
+        $status{$ctg->id}->{3},
+    ;
+
+    print $ctg->as_fasta;
+
+}
+
+sub consensus {
+
+    my ($end, @votes) = @_;
+    
+    my $cons = '';
+
+    return ($cons, 0)
+        if (! scalar @votes);
+
+    my @matched = grep {$_ =~ /$end/i} @votes;
+    warn "M: " . scalar(@matched) . "\n";
+    my @denom = grep {length($_) >= length($end)} @votes;
+    warn "D: " . scalar(@denom) . "\n";
+    if (
+        scalar(@denom)
+     && scalar(@matched)/scalar(@denom) > $min_match_ratio
+     && scalar(@matched) >= $min_match_count) {
+        @votes = @matched;
+    }
+
+    my $l = max map {length $_} @votes;
+    POS:
+    for my $p (0..$l-1) {
+        my %counts;
+        for my $v (@votes) {
+            if ( length($v) > $p ) {
+                ++$counts{ substr $v, $p, 1 };
+            }
+        }
+        my @candidates = sort {$counts{$b} <=> $counts{$a}}
+            grep {$counts{$_} >= $min_depth} keys %counts;
+        my $add;
+        if (scalar @candidates == 1) {
+            $add = $candidates[0];
+        }
+        elsif (scalar @candidates > 1) {
+            if ($counts{$candidates[1]}/$counts{$candidates[0]} <= $max_ratio) {
+                $add = $candidates[0];
+            }
+        }
+        if (defined $add) {
+            $cons .= $add;
+        }
+        else {
+            last POS;
+        }
+    }
+    my $depth = grep {$_ =~ /^$cons/} @votes;
+
+    return $cons, $depth;
+
+}
+        

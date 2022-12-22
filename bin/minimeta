@@ -774,10 +774,15 @@ Number of Racon polishing rounds to perform (default: 3)
 
 Number of Medaka polishing rounds to perform (default: 1)
 
+=item B<--medaka_model> I<string>
+
+Name of model to be used by medaka_consensus (based on basecalling model used
+for data) (default: r941_min_high_g360)
+
 =item B<--hp_model> I<string>
 
 Name of model to be used by homopolish. Has no effect if B<--homopolish> not
-used (default: R9.4.pkl).
+used. (default: R9.4.pkl)
 
 =item B<--quiet>
 

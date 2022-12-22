@@ -61,7 +61,7 @@ while (my $read1 = $parser1->next_seq) {
     if ($rename || $check) {
 
         my $base1 = $read1->id;
-        $base1 =~ s/(?:\/1])?(?:\s.+$|$)//;
+        $base1 =~ s/(?:\/1)?(?:\s.+$|$)//;
         my $base2 = $read2->id;
         $base2 =~ s/(?:\/[23])?(?:\s.+$|$)//;
 
@@ -78,7 +78,11 @@ while (my $read1 = $parser1->next_seq) {
     if (! $checked_identical) {
         my $seq1 = uc $read1->seq;
         my $seq2 = uc $read2->seq;
-        if ($seq1 eq $seq2) {
+        if (
+            $seq1 eq $seq2
+         && $read1->id eq $read2->id
+         && $read1->desc eq $read2->desc
+        ) {
             die "paired reads are identical -- did you accidentally specify the same input file twice?";
         }
         $checked_identical = 1;

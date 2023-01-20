@@ -6,15 +6,14 @@ use 5.012;
 
 use Bio::TreeIO;
 use Getopt::Long;
-use Math::SigFigs;
 use Pod::Usage;
 
 my $fn_in;
 my $fn_out;
 my $bs;
-my $mode  = 'decimal'; # decimal or percent
-my $sf    = 4;
-my $force = 0;
+my $mode   = 'decimal'; # decimal or percent
+my $places = 4;
+my $force  = 0;
 
 my $NAME = 'boot2frac';
 my $VERSION = '0.001';
@@ -26,7 +25,7 @@ GetOptions(
     'bs=i'         => \$bs,
     'force'        => \$force,
     'mode=s'       => \$mode,
-    'sig_figs=i'   => \$sf,
+    'places=i'     => \$places,
     'help'         => sub{ pod2usage( -verbose => 2 ) },
     'version'      => sub{ print "This is $NAME v$VERSION\n" and exit },
 ) or pod2usage( -msg => $err_msg, -verbose => 1 );
@@ -56,8 +55,8 @@ while (my $tree = $in->next_tree) {
             if ($support !~ /^\d+$/);
         die "Branch support value greater than supplied bootstrap count"
             if ($support > $bs);
-        my $label = $mode eq 'decimal' ? FormatSigFigs($support/$bs,     $sf)
-                  : $mode eq 'percent' ? FormatSigFigs($support/$bs*100, $sf)
+        my $label = $mode eq 'decimal' ? sprintf("%0.*f", $places, $support/$bs)
+                  : $mode eq 'percent' ? sprintf("%0.*f", $places-2, $support/$bs*100)
                   : die "Unsupported mode: $mode\n";
         $node->id($label);
     }
@@ -99,10 +98,11 @@ The number of bootstraps actually run (i.e. the denominator)
 The format in which to write support values (either 'decimal', e.g. '0.658', or
 'percent', e.g. '65.8') (default: decimal)
 
-=item B<--sig_figs>
+=item B<--places>
 
-The number of significant figures to use in writing support values (default:
-4)
+The number of decimal places to use in writing support values. Note that this
+is calculated before conversion to percent, so it is more like a
+quasi-significant digits format (default: 4)
 
 =item B<--help>
 

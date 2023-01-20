@@ -6,7 +6,7 @@ use Module::Build;
 
 my $builder = Module::Build->new(
     module_name        => 'b2b-utils',
-    dist_version       => 0.015,
+    dist_version       => 0.016,
     dist_abstract      => 'Utilities from BASE2BIO LLC',
     license            => 'GPL_3',
     dist_author        => q{Jeremy Volkening <jeremy.volkening@base2bio.com>},
@@ -20,7 +20,6 @@ my $builder = Module::Build->new(
     requires => {
         'BioX::Seq'       => 0,
         'Bio::TreeIO'     => 0,
-        'Math::SigFigs'   => 0,
         'List::MoreUtils' => 0,
         'PerlIO::gzip'    => 0,
     },

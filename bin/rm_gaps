@@ -157,7 +157,7 @@ Minimum length of a sequence "island" (that is, the region between "gappy"
 columns) to be output. Islands shorter than this will be discarded. This
 option can be used to filter out short aligned positions (e.g. 1 or several
 nucleotides long) within otherwise poorly aligned regions. (default: 1)
-j
+ 
 =item B<--remove_unknown>
 
 If given, unknown bases ('N') will be treated the same as gaps for the purpose

@@ -36,13 +36,10 @@
    },
    "release_status" : "stable",
    "resources" : {
-      "license" : [
-         "http://www.gnu.org/licenses/gpl-3.0.txt"
-      ],
       "repository" : {
          "url" : "https://github.com/jvolkening/b2b-utils"
       }
    },
    "version" : "0.017",
-   "x_serialization_backend" : "JSON::PP version 4.06"
+   "x_serialization_backend" : "JSON::PP version 4.04"
 }

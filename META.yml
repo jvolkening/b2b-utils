@@ -20,7 +20,6 @@ requires:
   List::MoreUtils: '0'
   PerlIO::gzip: '0'
 resources:
-  license: http://www.gnu.org/licenses/gpl-3.0.txt
   repository: https://github.com/jvolkening/b2b-utils
 version: '0.017'
 x_serialization_backend: 'CPAN::Meta::YAML version 0.018'

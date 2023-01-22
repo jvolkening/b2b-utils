@@ -1,0 +1,26 @@
+---
+abstract: 'Utilities from BASE2BIO LLC'
+author:
+  - 'Jeremy Volkening <jeremy.volkening@base2bio.com>'
+build_requires:
+  File::Compare: '0'
+  Test::More: '0'
+configure_requires:
+  Module::Build: '0'
+dynamic_config: 1
+generated_by: 'Module::Build version 0.4231, CPAN::Meta::Converter version 2.150010'
+license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: '1.4'
+name: b2b-utils
+requires:
+  Bio::TreeIO: '0'
+  BioX::Seq: '0'
+  List::MoreUtils: '0'
+  PerlIO::gzip: '0'
+resources:
+  license: http://www.gnu.org/licenses/gpl-3.0.txt
+  repository: https://github.com/jvolkening/b2b-utils
+version: '0.017'
+x_serialization_backend: 'CPAN::Meta::YAML version 0.018'

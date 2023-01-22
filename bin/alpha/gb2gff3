@@ -1,0 +1,168 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use BioX::Seq::Stream;
+use Cwd qw/abs_path getcwd/;
+use File::Basename qw/basename/;
+use File::Copy qw/move/;
+use File::Temp;
+use Getopt::Long;
+use IPC::Cmd qw/can_run run/;
+
+my $fi_gb;
+my $fo_gff3;
+my $fo_fasta;
+
+GetOptions(
+    'in=s'    => \$fi_gb,
+    'gff3=s'  => \$fo_gff3,
+    'fasta=s' => \$fo_fasta,
+);
+
+# make all file paths absolute
+for (\$fi_gb, \$fo_gff3, \$fo_fasta) {
+    $$_ = abs_path($$_)
+        if (defined $$_);
+}
+
+my $GB2GFF = can_run('bp_genbank2gff3')
+    // die "bp_genbank2gff3 is required but not found\n";
+my $GFF3QC = can_run('gff3_QC')
+    // die "gff3_QC is required but not found\n";
+my $GFF3FIX = can_run('gff3_fix')
+    // die "gff3_fix is requred but not found\n";
+my $GFF3SORT = can_run('gff3_sort')
+    // die "gff3_fix is requred but not found\n";
+
+# do work in scratch area
+my $cwd = getcwd;
+my $wd = File::Temp->newdir(CLEANUP => 1);
+chdir $wd;
+
+my ($fn_gff3, $fn_fa) = convert($fi_gb);
+
+$fn_gff3 = fix($fn_gff3, $fn_fa);
+
+# copy final GFF3
+if (defined $fo_gff3) {
+    move $fn_gff3, $fo_gff3
+        or die "Error moving GFF3: $@, $!\n";
+}
+# copy final FASTA
+if (defined $fo_fasta) {
+    move $fn_fa, $fo_fasta
+        or die "Error moving FASTA: $@, $!\n";
+}
+
+chdir $cwd;
+exit;
+
+sub convert {
+
+    my ($fi) = @_;
+
+    mkdir 'out';
+
+    my @cmd = (
+        $GB2GFF,
+        '--split',
+        '--nolump',
+        '-f' => 'GenBank',
+        $fi,
+        '-o' => 'out',
+    );
+    my ( $ok, $err_msg, $output, $stdout, $stderr )
+        = run( command => \@cmd );
+    die "Failed to run $GB2GFF: $err_msg\n"
+        if (! $ok);
+
+    my @gffs = glob "out/*.gff";
+    my @fas = glob "out/*.fa";
+    die "Too many/few gff outputs found!\n"
+        if (scalar @gffs != 1);
+    die "Too many/few gff outputs found!\n"
+        if (scalar @fas != 1);
+
+    my $ref_len;
+
+    # remove subfeature seqs
+    my $p = BioX::Seq::Stream->new($fas[0]);
+    my $seq = $p->next_seq
+        or die "No sequence found in converted FASTA\n";
+    $ref_len = length $seq;
+    open my $tmp, '>', 'single.fa';
+    print {$tmp} $seq->as_fasta;
+    close $tmp;
+
+    # remove phase info
+    open my $in, '<', $gffs[0];
+    open my $out, '>', 'nophase.gff3';
+    LINE:
+    while (my $line = <$in>) {
+        chomp $line;
+        if ($line !~ /^#/) {
+            my @fields = split "\t", $line;
+            $fields[7] = '.';
+            $line = join "\t", @fields;
+            # remove "source" entry spanning entire sequence
+            next LINE if ($fields[2] eq 'region'
+                && $fields[3] == 1
+                && $fields[4] == $ref_len
+            );
+        }
+        say {$out} $line;
+    }
+
+    return( 'nophase.gff3', 'single.fa' );
+
+}
+
+sub fix {
+
+    my ($fi_gff3, $fi_fa) = @_;
+
+    # gff3_sort -g foo.gff3 -og sorted.gff3
+    my @cmd = (
+        $GFF3SORT,
+        '-g' => $fi_gff3,
+        '-og' => 'sorted.gff3',
+    );
+    my ( $ok, $err_msg, $output, $stdout, $stderr )
+        = run( command => \@cmd );
+    die "Failed to run $GFF3SORT: $err_msg\n"
+        if (! $ok);
+
+    # add back (correct) phases
+    #gff3_QC -g bad.gff3 -f genome.fa -o errs.txt
+
+    @cmd = (
+        $GFF3QC,
+        '-g' => 'sorted.gff3',
+        '-f' => $fi_fa,
+        '-o' => 'errs.txt'
+    );
+    ( $ok, $err_msg, $output, $stdout, $stderr )
+        = run( command => \@cmd );
+    die "Failed to run $GFF3QC: $err_msg\n"
+        if (! $ok);
+
+    #gff3_fix -qc_r errs.txt -g bad.gff3 -o fixed.gff3
+    @cmd = (
+        $GFF3FIX,
+        '-qc_r' => 'errs.txt',
+        '-g' => 'sorted.gff3',
+        '-o' => 'fixed.gff3',
+    );
+    ( $ok, $err_msg, $output, $stdout, $stderr )
+        = run( command => \@cmd );
+    die "Failed to run $GFF3FIX: $err_msg\n"
+        if (! $ok);
+
+    return 'fixed.gff3';
+
+}
+

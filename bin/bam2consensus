@@ -3,13 +3,14 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use BioX::Seq;
-use BioX::Seq::Stream;
 use BioX::Seq::Fetch;
+use BioX::Seq::Stream;
 use File::Temp qw/tempfile/;
-use IPC::Cmd qw/can_run/;
 use Getopt::Long;
+use IPC::Cmd qw/can_run/;
 use List::Util qw/sum max first/;
 use Pod::Usage;
 use POSIX qw/floor ceil/;
@@ -29,11 +30,10 @@ my $sliding_window = 30;
 my $bg_bin_figs    = 0;
 my $verbose        = 0;
 
-my $PROGRAM = 'bam2consensus';
-my $VERSION = 0.004;
+our $VERSION = 0.004;
+use constant PROGRAM => 'bam2consensus';
 
 GetOptions(
-
     #-inputs-----------------------------------------------------------------#
     'bam=s'         => \$fn_bam,
     'ref=s'         => \$fn_ref,
@@ -48,9 +48,8 @@ GetOptions(
     'window=i'      => \$sliding_window,
     'bg_bin_figs=i' => \$bg_bin_figs,
     'verbose'       => \$verbose,
-    'help'          => sub{ pod2usage(-verbose => 2); },
-    'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
-
+    'help'          => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'       => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 ) or pod2usage( -verbose => 1);
 
 # check for recent version of samtools
@@ -691,11 +690,11 @@ Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jdv@base2bio.com)
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014-17 Jeremy Volkening
+Copyright 2014-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

@@ -14,6 +14,9 @@ use Getopt::Long;
 use IPC::Cmd qw/can_run run/;
 use Pod::Usage;
 
+our $VERSION = 0.005;
+use constant PROGRAM => 'minimeta';
+
 #-inputs---------------------------------------------------------------------#
 my $fi_reads;
 my $fi_consensus;
@@ -33,11 +36,7 @@ my $mask_below;
 my $split_below;
 my $only_split_at_hp = 0;
 
-my $PROGRAM = 'minimeta';
-my $VERSION = 0.004;
-
 GetOptions(
-
     #-inputs-----------------------------------------------------------------#
     'in=s'         => \$fi_reads,
     'assembly=s'   => \$fi_consensus,
@@ -56,9 +55,8 @@ GetOptions(
     'medaka_model=s'   => \$med_model,
     'only_split_at_hp' => \$only_split_at_hp,
     'quiet'            => \$quiet,
-    'help'             => sub{ pod2usage(-verbose => 2); },
-    'version'          => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
-
+    'help'             => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'          => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 ) or pod2usage( -verbose => 1);
 
 # check for required software
@@ -808,7 +806,7 @@ Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2021 Jeremy Volkening
+Copyright 2021-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

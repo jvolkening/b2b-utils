@@ -1,34 +1,34 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
+use 5.012;
+use autodie;
 
 use Getopt::Long;
 use File::Spec;
 use File::Temp qw/tempfile/;
 use IPC::Cmd qw/can_run/;
+use Pod::Usage qw/pod2usage/;
 
-my $PROGRAM = 'blast2diamond';
-my $VERSION = 0.003;
+our $VERSION = 0.003;
+use constant PROGRAM => 'blast2diamond';
 
 my $db;
 my $pfx_out;
 my %BINS;
 
+GetOptions(
+    'db=s'    => \$db,
+    'out=s'   => \$pfx_out,
+    'help'    => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version' => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
+) or pod2usage( -verbose => 1);
+
 for (qw/blastdbcmd diamond/) {
     $BINS{$_} = can_run($_) // die "$_ is required to run this program. Install"
         . " or check your \$PATH";
 }
-
-GetOptions(
-
-    'db=s'    => \$db,
-    'out=s'   => \$pfx_out,
-    'help'    => sub{ pod2usage(-verbose => 2); },
-    'version' => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
-
-) or pod2usage( -verbose => 1);
-
 die "database not defined" if (! defined $db);
 die "output prefix not defined" if (! defined $pfx_out);
 
@@ -107,11 +107,11 @@ Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jdv@base2bio.com)
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014-17 Jeremy Volkening
+Copyright 2014-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

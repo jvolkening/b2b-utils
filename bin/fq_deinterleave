@@ -9,10 +9,10 @@ use BioX::Seq::Stream;
 use Fatal qw/open close/;
 use Getopt::Long;
 use PerlIO::gzip;
-use Pod::Usage;
+use Pod::Usage qw/pod2usage/;
 
-use constant NAME => 'fq_deinterleave';
-use constant VERSION => '0.201';
+our $VERSION = '0.202';
+use constant PROGRAM => 'fq_deinterleave';
 
 #---------------------------------------------------------------------------#
 # Command line option parsing
@@ -34,7 +34,8 @@ my $options_okay = GetOptions(
     'check'    => \$check,
     'norename' => \$no_rename,
     'force'    => \$force,
-    'help'     => sub{ pod2usage(-verbose => 2); },
+    'help'     => sub{ pod2usage(-verbose => 2, exitval => 0); },
+    'version'  => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 );
 
 # check that two valid filenames are given
@@ -84,7 +85,7 @@ fq_deinterleave - de-interleave paired FASTQ files
 
 =head1 VERSION
 
-This documentation refers to v0.2
+This documentation refers to v0.202
 
 =head1 SYNOPSIS
 
@@ -135,11 +136,11 @@ tracker.
 
 =head1 AUTHOR
 
-Jeremy Volkening <jdv *at* base2bio.com>
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014-2020 Jeremy Volkening
+Copyright 2014-2023 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

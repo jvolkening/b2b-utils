@@ -1,11 +1,11 @@
 bin/bam2consensus
 bin/blast2diamond
 bin/boot2frac
-bin/bsml2fasta
+bin/alpha/bsml2fasta
 bin/decode_sam_flag
 bin/fasta2nexus
 bin/fasta2phylip
-bin/fasta_fix_lines
+bin/alpha/fasta_fix_lines
 bin/fq_deinterleave
 bin/fq_interleave
 bin/frag_lens

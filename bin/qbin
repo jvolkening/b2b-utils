@@ -9,6 +9,9 @@ use BioX::Seq::Stream;
 use Getopt::Long;
 use Pod::Usage;
 
+our $VERSION = '0.002';
+use constant PROGRAM => 'qbin';
+
 use constant LOWER => 33;
 use constant UPPER => 90;
 
@@ -39,9 +42,6 @@ my $binning_schemes = {
     },
 };
 
-my $NAME = 'qbin';
-my $VERSION = '0.001';
-
 my $fi_fasta;
 my $fo_fasta;
 my $bin_scheme = 'illumina';
@@ -50,8 +50,8 @@ GetOptions(
     'in=s'     => \$fi_fasta,
     'out=s'    => \$fo_fasta,
     'scheme=s' => \$bin_scheme,
-    'help'     => sub{ pod2usage( -verbose => 2 ) },
-    'version'  => sub{ print "This is $NAME v$VERSION\n" and exit },
+    'help'     => sub{ pod2usage( -verbose => 2, -exitval => 0 ) },
+    'version'  => sub{ say 'This is ',PROGRAM,' v',$VERSION; exit },
 ) or pod2usage(
     -msg => 'Syntax error: please check your command',
     -verbose => 1
@@ -165,7 +165,8 @@ those used by GATK):
 
 B<colord> -- Puts quality scores into one of four bins according to the CoLoRd
 preprint (used for long read compression) -- note that CoLoRd uses dynamic
-output values to keep the same same average quality, but here they are hard-coded):
+output values to keep the same same average quality, but here they are
+hard-coded):
 
 >= 26 : 40
 
@@ -197,7 +198,7 @@ Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2020 Jeremy Volkening
+Copyright 2020-2023 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

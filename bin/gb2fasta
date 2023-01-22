@@ -3,8 +3,19 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use Bio::SeqIO;
+use Getopt::Long;
+use Pod::Usage qw/pod2usage/;
+
+our $VERSION = '0.001';
+use constant PROGRAM => 'gb2fasta';
+
+GetOptions(
+    'help'    => sub{ pod2usage(-verbose => 2, exitval => 0) },
+    'version' => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
+);
 
 my $in = Bio::SeqIO->new(
     -fh => \*STDIN,
@@ -17,3 +28,61 @@ my $out = Bio::SeqIO->new(
 while (my $seq = $in->next_seq) {
     $out->write_seq($seq);
 }
+exit;
+
+__END__
+
+=head1 NAME
+
+gb2fasta - convert GenBank flatfiles to FASTA format
+
+=head1 SYNOPSIS
+
+gb2fasta < I<infile> > I<outfile>
+
+=head1 DESCRIPTION
+
+B<gb2fasta> simply takes a sequence file in GenBank flat format on STDIN and
+writes the sequences to STDOUT in FASTA format.
+
+=head1 OPTIONS
+
+=over 2
+
+=item B<--help>
+
+Show documentation and exit
+
+=item B<--version>
+
+Print version string and exit
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please report all bugs or suggestions on the software repository issues page.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy.volkening@base2bio.com)
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2020-2023 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+

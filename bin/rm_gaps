@@ -3,27 +3,27 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use BioX::Seq::Stream;
 use Getopt::Long;
-use Pod::Usage;
+use Pod::Usage qw/pod2usage/;
+
+our $VERSION = 0.003;
+use constant PROGRAM => 'rm_gaps';
 
 my $cutoff     = 0.1;
 my $min_island = 1;
 my $rm_unknown = 0;
 my $fn_blocks;
 
-my $PROGRAM = 'rm_gaps';
-my $VERSION = 0.002;
-
 GetOptions(
     'cutoff=f'       => \$cutoff,
     'min_len=i'      => \$min_island,
     'remove_unknown' => \$rm_unknown,
     'blocks=s'       => \$fn_blocks,
-    'help'           => sub{ pod2usage(-verbose => 2); },
-    'version'        => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
-
+    'help'           => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'        => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 ) or pod2usage( -verbose => 1);
 
 my %old_seqs;
@@ -182,11 +182,11 @@ Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jdv@base2bio.com)
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014-17 Jeremy Volkening
+Copyright 2014-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

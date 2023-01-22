@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use Cwd qw/abs_path/;
 use File::Temp qw/tempdir tempfile/;
@@ -10,6 +11,9 @@ use IPC::Cmd qw/can_run/;
 use List::Util qw/sum/;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = 0.001;
+use constant PROGRAM => 'frag_lens';
 
 my @good_codes = ( 0x0002, 0x0040 );
 my @bad_codes  = ( 0x0004, 0x0100, 0x0800 );
@@ -23,9 +27,6 @@ my $sam;
 my $threads = 1;
 my $max_align = 10000;
 
-my $PROGRAM = 'frag_lens';
-my $VERSION = 0.001;
-
 GetOptions(
     #-inputs-----------------------------------------------------------------#
     'sam=s'     => \$sam,
@@ -35,9 +36,8 @@ GetOptions(
     #-knobs------------------------------------------------------------------#
     'threads=i' => \$threads,
     'max_aln=i' => \$max_align,
-    'help'      => sub{ pod2usage(-verbose => 2); },
-    'version'   => sub{ say "This is $PROGRAM v$VERSION";exit; },
-
+    'help'      => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'   => sub{ say 'This is ',PROGRAM,' v',$VERSION; exit },
 ) or pod2usage( -verbose => 1);
 
 my $fh_sam;
@@ -182,11 +182,11 @@ Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jdv@base2bio.com)
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014-19 Jeremy Volkening
+Copyright 2014-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

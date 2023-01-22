@@ -3,18 +3,19 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use BioX::Seq::Stream;
 use Getopt::Long;
 use List::Util qw/uniq/;
-use Pod::Usage;
+use Pod::Usage qw/pod2usage/;
 
-my $PROGRAM = 'guess_ill_instrument';
-my $VERSION = 0.001;
+our $VERSION = 0.001;
+use constant PROGRAM => 'guess_ill_instrument';
 
 GetOptions( 
-    'help'          => sub{ pod2usage(-verbose => 2); },
-    'version'       => sub{ print "This is $PROGRAM v$VERSION\n";exit; },
+    'help'    => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version' => sub{ say 'This is ',PROGRAM,' v',$VERSION; exit },
 );
 
 # some of these patterns were adapted from those in 'illumina_instrument.py'
@@ -137,11 +138,14 @@ guess_ill_instrument I<FASTQ_filename>
 
 =head1 DESCRIPTION
 
-This utility reads in a FASTQ file, either from STDIN or from the fist
+This utility reads in a FASTQ file, either from STDIN or from the first
 argument on the command line, and tries to match the header fields for the
-first sequence to known patterns for specific instruments. It  will report any
-matches found, as well as whether the headers matched to the platform ID, the
-flowcell ID, both, or whether the two fields matched different instruments.
+first sequence to known patterns for specific instruments. It prints to STDOUT
+a single, tab-delimited line listing the detected platform (blank if not
+determined) and the source of detection -- either 'no_match', 'flowcell' if
+guessed from flowcell ID, 'instrument' if guessed from instrument ID, 'both'
+if guessed from both, or 'mismatch' if guessed from both but the guesses do
+not match.
 
 =head1 OPTIONS
 
@@ -153,11 +157,11 @@ Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening <jeremy.volkening@base2bio.com>
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2021 Jeremy Volkening
+Copyright 2021-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

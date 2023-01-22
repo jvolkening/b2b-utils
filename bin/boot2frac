@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
 use Bio::TreeIO;
 use Getopt::Long;
@@ -15,8 +16,8 @@ my $mode   = 'decimal'; # decimal or percent
 my $places = 4;
 my $force  = 0;
 
-my $NAME = 'boot2frac';
-my $VERSION = '0.001';
+our $VERSION = '0.001';
+use constant PROGRAM => 'boot2frac';
 
 my $err_msg = 'Syntax error: please check your syntax';
 GetOptions(
@@ -26,8 +27,8 @@ GetOptions(
     'force'        => \$force,
     'mode=s'       => \$mode,
     'places=i'     => \$places,
-    'help'         => sub{ pod2usage( -verbose => 2 ) },
-    'version'      => sub{ print "This is $NAME v$VERSION\n" and exit },
+    'help'         => sub{ pod2usage( -verbose => 2, -exitval => 0 ) },
+    'version'      => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 ) or pod2usage( -msg => $err_msg, -verbose => 1 );
 
 die "Input file not found" if (! -e $fn_in);
@@ -75,7 +76,9 @@ boot2frac --in $input_fn --out $output_fn --bs $bootstraps
 
 =head1 DESCRIPTION
 
-This program takes a Newick tree file and converts positive integer bootstrap values stored in internal node labels to fractional values based on the supplied total bootstrap run.
+This program takes a Newick tree file and converts positive integer bootstrap
+values stored in internal node labels to fractional values based on the
+supplied total bootstrap run.
 
 =head1 OPTIONS
 
@@ -87,7 +90,8 @@ Path to input file in Newick format
 
 =item B<--out> I<filename>
 
-Path to output file in Newick format. An error will be thrown if the output exists.
+Path to output file in Newick format. An error will be thrown if the output
+exists.
 
 =item B<--bs>
 
@@ -116,15 +120,15 @@ Print version information
 
 =head1 CAVEATS AND BUGS
 
-Currently unknown. Please submit bug reports to the author.
+Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jdv@base2bio.com)
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2014-16 Jeremy Volkening
+Copyright 2014-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

@@ -3,8 +3,8 @@
 use strict;
 use warnings;
 use 5.012;
-
 use autodie;
+
 use Carp;
 use DBI;
 use Digest::MD5;
@@ -19,8 +19,8 @@ use Pod::Usage;
 use Sys::Syslog qw/:standard :macros/;
 use Try::Tiny;
 
-use constant NAME    => 'ncbi_blast_update';
-use constant VERSION => '0.301';
+our $VERSION = '0.301';
+use constant PROGRAM    => 'ncbi_blast_update';
 
 use constant SQL_DB => 'ncbi_blast.sqlite';
 use constant LOCKFILE => '/var/tmp/ncbi_blast_update.pid';
@@ -49,28 +49,20 @@ my $res = GetOptions(
     'timeout=i'     => \$timeout, # in seconds
     'verbose'       => \$verbose,
     'list'          => \$list_dbs,
-    'version'       => \$print_version,
     'db=s'          => \@dbs,
     'local_path=s'  => \$local_path,
     'clean'         => \$clean,
     'syslog'        => \$log,
     'attempts=i'    => \$tries,
     'chmod'         => \$chmod,
-    'man'           => sub{ pod2usage(-verbose => 2); },
-    'help'          => sub{ pod2usage(-verbose => 2); },
+    'man'           => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'help'          => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'       => sub{ say 'This is ',PROGRAM,' v',$VERSION; exit },
 );
-
-# Handle version requests
-if ($print_version) {
-    say 'This is ' , NAME, ' v' , VERSION;
-    say 'Copyright 2014-2018 Jeremy Volkening (jeremy@base2bio.com)';
-    say 'Licensed under the GNU GPLv3';
-    exit;
-}
 
 # open syslog connection
 if ($log) {
-    openlog( NAME, 'perror', LOG_LOCAL1 )
+    openlog( PROGRAM, 'perror', LOG_LOCAL1 )
         or croak "Error opening syslog connection: $!";
 }
 
@@ -678,11 +670,11 @@ but no longer exist remotely.
 
 =head1 AUTHOR
 
-Jeremy Volkening (jdv@base2bio.com)
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014-2018 Jeremy Volkening
+Copyright 2014-2023 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

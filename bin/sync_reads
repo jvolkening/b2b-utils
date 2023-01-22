@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 use 5.012;
+use autodie;
 
-use autodie qw/open close/;
 use BioX::Seq::Stream;
 use Getopt::Long;
-use Pod::Usage;
+use Pod::Usage qw/pod2usage/;
 
 my $reads1;
 my $reads2;
@@ -20,13 +20,13 @@ my $outname2;
 my $singles1_name;
 my $singles2_name;
 
+our $VERSION  = '0.005';
+use constant PROGRAM  => 'sync_reads';
+
 use constant DSRC_BIN => 'dsrc';
 use constant GZIP_BIN => 'gzip';
-use constant NAME     => 'sync_reads';
-use constant VERSION  => '0.005';
 
 GetOptions(
-
     'fwd=s'             => \$reads1,
     'rev=s'             => \$reads2,
     'singles'           => \$singles,
@@ -37,9 +37,8 @@ GetOptions(
     'sync_suffix=s'     => \$sync_suffix,
     'singles_suffix=s'  => \$singles_suffix,
     'compress:s'        => \$compress,
-    'help'              => sub{ pod2usage(-verbose => 2); },
-    'version'           => sub{ print 'This is ', NAME, ' v', VERSION, "\n";exit; },
-
+    'help'              => sub{ pod2usage(-verbose => 2, exitval => 0); },
+    'version'           => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 ) or pod2usage( -verbose => 1 );
 
 pod2usage(-verbose => 1, -msg => "Error: input files can\'t be read")
@@ -278,11 +277,11 @@ Please submit bug reports to the issue tracker in the distribution repository.
 
 =head1 AUTHOR
 
-Jeremy Volkening <jdv@base2bio.com>
+Jeremy Volkening (jeremy.volkening@base2bio.com)
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2014-16 Jeremy Volkening
+Copyright 2014-23 Jeremy Volkening
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by

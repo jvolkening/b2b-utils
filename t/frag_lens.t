@@ -11,7 +11,7 @@ use File::Compare;
 use File::Temp;
 use IPC::Cmd qw/can_run/;
 
-# Don't run tests if BWA not installed
+# Don't run tests if dependencies not installed
 if (! defined can_run('bwa')) {
     plan skip_all => "BWA not found so can't test";
     exit;

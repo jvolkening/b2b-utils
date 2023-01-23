@@ -1,0 +1,304 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use 5.012;
+use autodie;
+
+use BioX::Seq::Stream;
+use File::Temp;
+use Getopt::Long;
+use IPC::Cmd qw/can_run run/;
+use Pod::Usage qw/pod2usage/;
+
+our $VERSION = '0.001';
+use constant PROGRAM => 'shrink_bedgraph';
+
+my $fn_fa;
+my $fn_bg;
+my $fn_out;
+my $n_bins    = 500;
+my $op        = 'max';
+my $max_iters = 10;
+
+GetOptions(
+    'fa=s'        => \$fn_fa,
+    'bg=s'        => \$fn_bg,
+    'out=s'       => \$fn_out,
+    'n_bins=i'    => \$n_bins,
+    'operation=s' => \$op,
+    'help'        => sub{ pod2usage(-verbose => 2, exitval => 0) },
+    'version'     => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
+) or pod2usage( -verbose => 1);
+
+# check for required software
+my $SAMTOOLS = can_run('samtools')
+    // die "samtools is required but not found\n";
+my $BEDTOOLS = can_run('bedtools')
+    // die "bedtools is required but not found\n";
+
+open my $fh_out, '>', $fn_out;
+
+if (! -s $fn_fa) {
+    warn "Empty input, exiting.\n";
+    close $fh_out;
+    exit;
+}
+
+# split inputs into individual contigs
+
+my $p = BioX::Seq::Stream->new($fn_fa);
+open my $in_bg, '<', $fn_bg;
+
+my $work_dir = File::Temp->newdir(CLEANUP => 1);
+
+my $curr_chr = '';
+my $curr_fh;
+
+my @chr_ids;
+my %chr_lens;
+
+my %orphans;
+
+while (my $line = <$in_bg>) {
+    my ($chr, @other) = split "\t", $line;
+    if ($chr ne $curr_chr) {
+        open $curr_fh, '>', "$work_dir/$chr.bg";
+        my $seq;
+        while (1) {
+            $seq = $p->next_seq;
+            last if ! defined $seq;
+            last if $seq->id eq $chr;
+            $orphans{ $seq->id } = $seq;
+        }
+        $seq //= $orphans{$chr}
+            or die "BedGraph/FASTA mismatch (sequence not found in FASTA)";
+        open my $fa_out, '>', "$work_dir/$chr.fa";
+        print {$fa_out} $seq->as_fasta;
+        $chr_lens{$chr} = length $seq;
+        push @chr_ids, $chr;
+        $curr_chr = $chr;
+    }
+    print {$curr_fh} $line;
+}
+close $curr_fh if (defined $curr_fh);
+
+
+# process each individual contig separately, since they may have very
+# different coverage characteristics and have very different optimum window
+# sizes
+for my $chr (@chr_ids) {
+
+    my $fn_fa = "$work_dir/$chr.fa";
+    my $fn_bg = "$work_dir/$chr.bg";
+
+    # localize for mutation
+    my $try_bins = $n_bins;
+    my $wanted_bins = $n_bins;
+
+    my $max_bins = $chr_lens{$chr};
+
+    my $ret = system(
+        $SAMTOOLS,
+        'faidx',
+        $fn_fa
+    );
+    die "Error running samtools faidx: $!"
+        if ($ret);
+
+    my $i = 0;
+
+    my $last_np = 0;
+    my $last_points;
+
+    # actual number of bins returned from makewindows can vary depending on
+    # input, so we call it iteratively with adjusted window lengths to try to
+    # get close to the requested value
+    while (1) {
+       
+        # generate windows file
+        my $win_tmp = File::Temp->new(UNLINK => 1, SUFFIX=> '.bg');
+        my $win_len = sprintf "%0.0f", $chr_lens{$chr}/$try_bins;
+        my @cmd_win = (
+            $BEDTOOLS,
+            'makewindows',
+            '-g' => "$fn_fa.fai",
+            '-w' =>  $win_len,
+        );
+        my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+            = run( command => \@cmd_win );
+        die "Error running bedtools makewindows: $error_message"
+            if (! $success);
+        print {$win_tmp} join '', @{$stdout_buf};
+        close $win_tmp;
+       
+        # generate summary bedgraph
+        open my $fh, '-|',
+            $BEDTOOLS,
+            'map',
+            '-a' => $win_tmp,
+            '-b' => $fn_bg,
+            '-g' => "$fn_fa.fai",
+            '-c' =>  4,
+            '-o' =>  $op,
+        ;
+        my ($n_chrs, @points) = parse_bg($fh);
+        close $fh
+            or die "Error running bedtools map: $!";
+        my $np = scalar @points;
+        if ($np < $wanted_bins && $i < $max_iters && $try_bins < $max_bins) {
+            my $new_bins = int($try_bins * $wanted_bins/$np);
+            if ($np > $last_np) {
+                $try_bins = $new_bins;
+                $try_bins = $max_bins
+                    if ($try_bins > $max_bins);
+                ++$i;
+                $last_np = $np;
+                $last_points = \@points;
+                next;
+            }
+            elsif ($np < $last_np) {
+                @points = @{$last_points};
+            }
+        }
+        
+        $np = scalar @points;
+        say {$fh_out} join( "\t", @$_ )
+            for (@points);
+        last;
+
+    }
+
+}
+
+sub parse_bg {
+
+    my ($fh) = @_;
+
+    my $curr_chr;
+    my $curr_start;
+    my $curr_end;
+    my $curr_depth;
+
+    my @points;
+    my %chrs;
+
+    while (my $line = <$fh>) {
+
+        chomp $line;
+        my ($chr, $start, $end, $depth) = split "\t", $line;
+
+        $chrs{$chr} = 1; # track seq IDs
+
+        if (defined $curr_start
+            && ($chr ne $curr_chr || $depth != $curr_depth)) {
+            push @points, [
+                $curr_chr,
+                $curr_start,
+                $curr_end,
+                $curr_depth,
+            ];
+            $curr_start = undef;
+            $curr_end   = undef;
+            $curr_depth = undef;
+            $curr_chr   = undef;
+        }
+
+        $curr_chr   //= $chr;
+        $curr_depth //= $depth;
+        $curr_start //= $start;
+        $curr_end   = $end;
+
+    }
+
+    push @points, [
+        $curr_chr,
+        $curr_start,
+        $curr_end,
+        $curr_depth,
+    ];
+
+    return scalar(keys %chrs), @points;
+
+}
+
+__END__
+
+=head1 NAME
+
+shrink_bedgraph - reduce resolution/size of bedgraph files
+
+=head1 SYNOPSIS
+
+shrink_bedgraph --fa I<fasta> --bg I<in_bedgraph> --out I<out_bedgraph> ... 
+
+=head1 DESCRIPTION
+
+B<shrink_bedgraph> reduces the resolution of a bedgraph file in order to
+reduce file size and simplify plotting. This is done by binning depth values
+and applying a summary function to each bin, utilizing samtools and bedtools
+under the hood. Adjacent entries with identical depths are also merged. A
+separate optimum bin width is calculated for each contig in the input.
+
+=head1 OPTIONS
+
+=over 2
+
+=item B<--bg> I<file_path>
+
+Path to the input bedgraph file
+
+=item B<--fa> I<file_path>
+
+Path to the input FASTA file corresponding to the input bedgraph
+
+=item B<--out> I<file_path>
+
+Path to which to write the output bedgraph file
+
+=item B<--n_bins> I<integer>
+
+Number of bins into which to divide each contig (default: 500)
+
+=item B<--operation> I<string>
+
+Summarization operation to apply to each bin. This is passed through directly
+to the I<bedtools map> call. (default: 'max')
+
+=item B<--help>
+
+Show documentation and exit
+
+=item B<--version>
+
+Print version string and exit
+
+=back
+
+=head1 CAVEATS AND BUGS
+
+Please report all bugs or suggestions on the software repository issues page.
+
+=head1 AUTHOR
+
+Jeremy Volkening (jeremy.volkening@base2bio.com)
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2021-2023 Jeremy Volkening
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see L<http://www.gnu.org/licenses/>.
+
+=cut
+

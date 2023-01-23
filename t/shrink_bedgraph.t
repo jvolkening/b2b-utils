@@ -11,7 +11,7 @@ use File::Compare;
 use IPC::Cmd qw/can_run/;
 
 # Don't run tests if dependencies not installed
-for (qw/minimap2 miniasm racon medaka_consensus/) {
+for (qw/samtools bedtools/) {
     if (! defined can_run($_)) {
         plan skip_all => "$_ not found so can't test";
         exit;
@@ -19,17 +19,21 @@ for (qw/minimap2 miniasm racon medaka_consensus/) {
 }
 
 
-my $bin     = 'bin/minimeta';
-my $in_fa  = 't/test_data/nanopore.fq.gz';
-my $cmp_fa   = 't/test_data/minimeta.out.fa';
-my $out_fa   = File::Temp->new(UNLINK => 1);
+my $bin  = 'bin/shrink_bedgraph';
+my $in   = 't/test_data/testbg.bg';
+my $fa   = 't/test_data/testbg.fa.gz';
+my $cmp  = 't/test_data/testbg.shrink.bg';
+
+my $out = File::Temp->new(UNLINK => 1);
 
 my $ret = system(
     $bin,
-    '--in'       => $in_fa,
-    '--out'      => $out_fa,
+    '--bg'     => $in,
+    '--fa'     => $fa,
+    '--out'    => $out,
+    '--n_bins' => 200,
 );
 ok( ! $ret, "test call succeeded" );
-ok( abs((-s $cmp_fa)-(-s $out_fa)) < 20, "assembly outputs similar sizes" );
+ok( compare($cmp => $out) == 0, "test files match" );
 
 done_testing();

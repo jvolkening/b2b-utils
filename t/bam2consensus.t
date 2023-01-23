@@ -10,7 +10,7 @@ use File::Temp;
 use File::Compare;
 use IPC::Cmd qw/can_run/;
 
-# Don't run tests if BWA not installed
+# Don't run tests if dependencies not installed
 if (! defined can_run('samtools') || ! defined can_run('mafft')) {
     plan skip_all => "samtools/mafft not found so can't test";
     exit;

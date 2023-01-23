@@ -15,6 +15,7 @@ bin/qbin
 bin/rm_chim
 bin/rm_gaps
 bin/seq_diff
+bin/shrink_bedgraph
 bin/summarize_assembly
 bin/sync_reads
 bin/uc
@@ -38,6 +39,7 @@ t/qbin.t
 t/rm_chim.t
 t/rm_gaps.t
 t/seq_diff.t
+t/shrink_bedgraph.t
 t/summarize_assembly.t
 t/sync_reads.t
 t/test_data/b2c.bam
@@ -144,4 +146,7 @@ t/test_data/test_R1.sync.fq
 t/test_data/test_R2.fq
 t/test_data/test_R2.singles.fq
 t/test_data/test_R2.sync.fq
+t/test_data/testbg.bg
+t/test_data/testbg.fa.gz
+t/test_data/testbg.shrink.bg
 t/uc.t

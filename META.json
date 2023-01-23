@@ -40,6 +40,6 @@
          "url" : "https://github.com/jvolkening/b2b-utils"
       }
    },
-   "version" : "0.017",
+   "version" : "0.018",
    "x_serialization_backend" : "JSON::PP version 4.04"
 }

@@ -667,8 +667,8 @@ minimeta --in <reads.fq> --out <consensus.fasta>
 
 =head1 DESCRIPTION
 
-Produced a polished consensus assembly from long-read reads using miniasm,
-racon, and medaka. Software settings are tuned for
+Produces a polished consensus assembly from long-read sequencing data using
+miniasm, racon, and medaka. Software settings are tuned for
 metagenomic/metatranscriptomic assemblies of variable, sometimes low,
 coverage.
 
@@ -696,7 +696,7 @@ as well as the following binaries:
 
 =item * samtools
 
-=item * bcftools
+=item * bedtools
 
 =back
 

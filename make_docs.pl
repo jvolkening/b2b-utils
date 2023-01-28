@@ -23,10 +23,10 @@ use Pod::Simple::HTMLBatch;
 use Pod::Simple::Search;
 
 # read in header/footer
-open my $in, '<', 'doc/templates/header.html';
+open my $in, '<', 'docs/templates/header.html';
 my $header = do { local $/; <$in> };
 close $in;
-open $in, '<', 'doc/templates/footer.html';
+open $in, '<', 'docs/templates/footer.html';
 my $footer = do { local $/; <$in> };
 close $in;
 

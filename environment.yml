@@ -1,0 +1,16 @@
+name: b2b-utils
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - b2b-utils
+  - bedtools
+  - bwa
+  - homopolish
+  - racon
+  - samtools
+  - mafft
+  - medaka
+  - miniasm
+  - minimap2

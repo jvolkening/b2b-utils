@@ -1,0 +1,40 @@
+body {
+    font-family: Lato, sans-serif;
+    max-width: 800px;
+    margin: 0px auto;
+    padding: 0 2rem;
+}
+
+.contentspage dt {
+    display: none;
+}
+.contentspage dd {
+    margin: 0;
+    padding: 8px 0;
+}
+
+h1 {
+    color: #fff;
+    background-color: #2a475c;
+    padding: 0.5rem;
+}
+
+.pod h1 {
+    font-size: 1.2rem;
+}
+
+.pod h1 a {
+    color: #fff;
+    text-decoration: none;
+}
+
+.pod h2 {
+    font-size: 1.1rem;
+}
+
+.pod h2 a {
+    color: #000;
+    text-decoration: none;
+    font-weight: 700;
+    border-bottom: solid 1px #333;
+}

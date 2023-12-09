@@ -14,7 +14,7 @@ use Getopt::Long;
 use IPC::Cmd qw/can_run run/;
 use Pod::Usage;
 
-our $VERSION = 0.005;
+our $VERSION = 0.007;
 use constant PROGRAM => 'minimeta';
 
 #-inputs---------------------------------------------------------------------#
@@ -25,7 +25,7 @@ my $fi_homopolish;
 my $fo_consensus;
 #-knobs----------------------------------------------------------------------#
 my $threads  = 1;
-my $n_racon  = 3;
+my $n_racon  = 0;
 my $n_medaka = 1;
 my $quiet    = 0;
 my $min_cov  = 2;
@@ -35,6 +35,11 @@ my $med_model;
 my $mask_below;
 my $split_below;
 my $only_split_at_hp = 0;
+my $minimizer_cutoff;
+my $reduce = 0;
+my $min_ident = 0.8;
+my $shuffle = 1;
+my $deterministic = 0;
 
 GetOptions(
     #-inputs-----------------------------------------------------------------#
@@ -44,24 +49,32 @@ GetOptions(
     #-outputs----------------------------------------------------------------#
     'out=s' => \$fo_consensus,
     #-knobs------------------------------------------------------------------#
-    'threads=i'        => \$threads,
-    'n_racon=i'        => \$n_racon,
-    'n_medaka=i'       => \$n_medaka,
-    'min_cov=i'        => \$min_cov,
-    'min_len=i'        => \$min_len,
-    'mask_below=i'     => \$mask_below,
-    'split_below=i'    => \$split_below,
-    'hp_model=s'       => \$hp_model,
-    'medaka_model=s'   => \$med_model,
-    'only_split_at_hp' => \$only_split_at_hp,
-    'quiet'            => \$quiet,
-    'help'             => sub{ pod2usage(-verbose => 2, -exitval => 0); },
-    'version'          => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
+    'threads=i'          => \$threads,
+    'n_racon=i'          => \$n_racon,
+    'n_medaka=i'         => \$n_medaka,
+    'min_cov=i'          => \$min_cov,
+    'min_len=i'          => \$min_len,
+    'mask_below=i'       => \$mask_below,
+    'split_below=i'      => \$split_below,
+    'hp_model=s'         => \$hp_model,
+    'medaka_model=s'     => \$med_model,
+    'only_split_at_hp'   => \$only_split_at_hp,
+    'minimizer_cutoff=i' => \$minimizer_cutoff,
+    'reduce'             => \$reduce,
+    'min_ident=f'        => \$min_ident,
+    'shuffle'            => \$shuffle,
+    'deterministic'      => \$deterministic,
+    'quiet'              => \$quiet,
+    'help'               => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'            => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
 ) or pod2usage( -verbose => 1);
 
 # check for required software
 my $MINIMAP2 = can_run('minimap2')
     // die "Minimap2 is required but not found\n";
+
+my $SEQKIT = can_run('seqkit')
+    // die "SeqKit is required but not found\n";
 
 my $MINIASM = can_run('miniasm');
 if (! defined $fi_consensus && ! defined $MINIASM) {
@@ -70,28 +83,34 @@ if (! defined $fi_consensus && ! defined $MINIASM) {
 
 my $RACON = can_run('racon');
 if ($n_racon > 0 && ! defined $RACON) {
-    die "Racon is required but not found\n";
+    die "Racon is required for polishing but not found\n";
 }
 
 my $MEDAKA = can_run('medaka_consensus');
 if ($n_medaka > 0 && ! defined $MEDAKA) {
-    die "Medaka is required but not found\n";
+    die "Medaka is required for polishing but not found\n";
 }
 
 my $SAMTOOLS = can_run('samtools');
 if ((defined $mask_below || defined $split_below) && ! defined $SAMTOOLS) {
-    die "Samtools is required but not found\n";
+    die "Samtools is required for masking/splitting but not found\n";
 }
 
 my $BEDTOOLS = can_run('bedtools');
 if ((defined $mask_below || defined $split_below) && ! defined $BEDTOOLS) {
-    die "Bedtools is required but not found\n";
+    die "Bedtools is required for masking/splitting but not found\n";
 }
 
 my $HOMOPOLISH = can_run('homopolish');
 if (defined $fi_homopolish && ! defined $HOMOPOLISH) {
-    die "Homopolish is required but not found\n";
+    die "Homopolish is required for polishing but not found\n";
 }
+
+my $REDUNDANS = can_run('redundans.py');
+if ($reduce && ! defined $REDUNDANS) {
+    die "Redundans is required for reducing but not found\n";
+}
+
 
 # globals
 
@@ -120,7 +139,19 @@ my $init_dir = abs_path(getcwd());
 my $in_base = basename($fi_reads);
 my $wd =  File::Temp->newdir(CLEANUP => 1);
 chdir $wd;
-symlink $fi_reads, $in_base;
+
+if ( $shuffle) {
+    plog( 'shuffle', 'Shuffle input reads' );
+    my $ts = time;
+    shuffle( $fi_reads, $in_base );
+    my $el = time - $ts;
+    plog( 'shuffle', "Shuffle took $el s" );
+
+
+}
+else {
+    symlink $fi_reads, $in_base;
+}
 
 my $curr_cons = 'init.fa';
 
@@ -204,6 +235,21 @@ if (defined $split_below) {
 
 }
 
+# Redundans reduction
+if ($reduce) {
+
+    plog( 'reduce', "Removing redundant contigs with identity above $min_ident" );
+    my $new_cons = "reduced.fa";
+
+    my $ts = time;
+    redundans($curr_cons, $new_cons, $min_ident);
+    my $el = time - $ts;
+    plog( 'reduce', "Reduction took $el s" );
+
+    $curr_cons = $new_cons;
+
+}
+
 if (defined $mask_below) {
 
     plog( 'mask', "Masking regions with coverage below $mask_below" );
@@ -255,11 +301,16 @@ sub map_ava {
     
     my ($fi, $fo) = @_;
 
+    my @fmax = ();
+    if (defined $minimizer_cutoff) {
+        push @fmax, '-f', $minimizer_cutoff;
+    }
     my @cmd = (
         $MINIMAP2,
         '-t' => $threads,
         '-x' => 'ava-ont',
         '-o' => $fo,
+        @fmax,
         $in_base,
         $in_base,
     );
@@ -300,23 +351,66 @@ sub split_below {
         $BEDTOOLS,
         'genomecov',
         '-ibam' => 'sorted.bam',
-        '-split',
+        #'-split',
         '-bga',
     );
     my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
         = run( command => \@cmd_cov );
     die "Error running bedtools genomecov: $error_message"
         if (! $success);
+    save_buff($stdout_buf, 'coverage.bedgraph');
+
+    # fractional cutoff is interpreted as fraction of median depth,
+    # so we need to calculate that here for each contig
+    my $individual_cutoffs;
+    if ($split_below < 1 && $split_below > 0) {
+
+        # create one-feature-per-contig BED
+        open my $chr_bed, '>', 'chrs.bed';
+        my $p = BioX::Seq::Stream->new($fi_cons);
+        while (my $seq = $p->next_seq) {
+            say {$chr_bed} join "\t",
+                $seq->id,
+                0,
+                length($seq),
+            ;
+        }
+        close $chr_bed;
+
+        my @cmd_map = (
+            $BEDTOOLS,
+            'map',
+            '-a' => 'chrs.bed',
+            '-b' => 'coverage.bedgraph',
+            '-c' => '4',
+            '-o' => 'median',
+        );
+        my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+            = run( command => \@cmd_map );
+        die "Error running bedtools map: $error_message"
+            if (! $success);
+        # this hack is necessary to process output by line; otherwise buffering can
+        # cause incomplete lines to be processed
+        my $stdout = join '', @{ $stdout_buf};
+        open my $stream, '<', \$stdout;
+        while (my $line = <$stream>) {
+            chomp $line;
+            my ($chr, $s, $e, $depth) = split "\t", $line;
+            $individual_cutoffs->{$chr} = $depth * $split_below;
+        }
+        close $stream;
+
+    }
 
     my %split_points;
-    # this hack is necessary to process output by line; otherwise buffering can
-    # cause incomplete lines to be processed
-    my $stdout = join '', @{ $stdout_buf};
-    open my $stream, '<', \$stdout;
+    open my $stream, '<', 'coverage.bedgraph';
     while (my $line = <$stream>) {
         chomp $line;
         my @fields = split "\t", $line;
-        next if ($fields[3] >= $split_below);
+        my $cutoff = defined $individual_cutoffs
+            ? ($individual_cutoffs->{ $fields[0] } // 0)
+            : $split_below;
+        next if ($fields[3] >= $cutoff);
         push @{ $split_points{$fields[0]} }, [$fields[1]+1, $fields[2]];
     }
     close $stream;
@@ -593,6 +687,23 @@ sub mask_below {
 
 }
 
+sub shuffle {
+    
+    my ($fi_reads, $fo_reads) = @_;
+
+    my $seed = $deterministic ? 22 : int(rand(999999));
+    my @cmd = (
+        $SEQKIT,
+        'shuffle',
+        '-s' => $seed,
+        '-o' => $fo_reads,
+        $fi_reads,
+    );
+    run( command => \@cmd )
+        or die "shuffle failed: $!";
+
+}
+
 sub filter_short {
     
     my ($fi_cons, $fo_cons, $min_len) = @_;
@@ -647,11 +758,49 @@ sub homopolish {
 
 }
 
+sub redundans {
+
+    my ($fi_cons, $fo_cons, $min_ident) = @_;
+
+    my @cmd = (
+        $REDUNDANS,
+        '-t' => $threads,
+        '--nogapscaffolding',
+        '--nogapclosing',
+        '--identity' => $min_ident,
+        '-f' => $fi_cons,
+        '-o' => 'reduced',
+    );
+    if (defined $med_model) {
+        push @cmd, '-m' => $med_model;
+    }
+    run( command => \@cmd )
+        or die "Call to medaka failed: $!";
+
+    # transfer annotations dropped by redundans
+    transfer_annots(
+        $fi_cons,
+        'reduced/scaffolds.reduced.fa',
+        $fo_cons
+    );
+
+}
+
 sub plog {
 
     my ($unit, $msg) = @_;
     return if ($quiet);
     say STDERR "[mm::$unit] $msg";
+
+}
+
+sub save_buff {
+
+    my ($buff, $fn) = @_;
+
+    open my $out, '>', $fn;
+    print {$out} join '', @{ $buff };
+    close $out;
 
 }
 

@@ -5,6 +5,7 @@ use warnings;
 use 5.012;
 use autodie;
 
+use BioX::Seq::Fetch;
 use BioX::Seq::Stream;
 use Cwd qw/abs_path getcwd/;
 use File::Basename qw/basename/;
@@ -13,8 +14,9 @@ use File::Temp;
 use Getopt::Long;
 use IPC::Cmd qw/can_run run/;
 use Pod::Usage;
+use Time::Seconds;
 
-our $VERSION = 0.007;
+our $VERSION = 0.008;
 use constant PROGRAM => 'minimeta';
 
 #-inputs---------------------------------------------------------------------#
@@ -55,14 +57,14 @@ GetOptions(
     'min_cov=i'          => \$min_cov,
     'min_len=i'          => \$min_len,
     'mask_below=i'       => \$mask_below,
-    'split_below=i'      => \$split_below,
+    'split_below=f'      => \$split_below,
     'hp_model=s'         => \$hp_model,
     'medaka_model=s'     => \$med_model,
     'only_split_at_hp'   => \$only_split_at_hp,
     'minimizer_cutoff=i' => \$minimizer_cutoff,
     'reduce'             => \$reduce,
     'min_ident=f'        => \$min_ident,
-    'shuffle'            => \$shuffle,
+    'shuffle!'           => \$shuffle,
     'deterministic'      => \$deterministic,
     'quiet'              => \$quiet,
     'help'               => sub{ pod2usage(-verbose => 2, -exitval => 0); },
@@ -144,8 +146,8 @@ if ( $shuffle) {
     plog( 'shuffle', 'Shuffle input reads' );
     my $ts = time;
     shuffle( $fi_reads, $in_base );
-    my $el = time - $ts;
-    plog( 'shuffle', "Shuffle took $el s" );
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'shuffle', "Shuffle took $el" );
 
 
 }
@@ -165,8 +167,10 @@ else {
     my $ts = time;
     map_ava( $in_base, 'init.paf' );
     miniasm( $in_base, 'init.paf', $curr_cons );
-    my $el = time - $ts;
-    plog( 'assembly', "Assembly took $el s" );
+    my $n = n_seqs($curr_cons);
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'assembly', "Assembly took $el" );
+    plog( 'assembly', "Assembled $n contigs" );
 }
 
 # bail out gracefully if initial assembly is empty
@@ -186,8 +190,8 @@ for my $i (1..$n_racon) {
 
     my $ts = time;
     polish_racon( $in_base, $curr_cons, $new_cons);
-    my $el = time - $ts;
-    plog( 'racon', "Round took $el s" );
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'racon', "Round took $el"  );
 
     $curr_cons = $new_cons;
 }
@@ -200,8 +204,8 @@ if (defined $fi_homopolish) {
 
     my $ts = time;
     homopolish( $fi_homopolish, $curr_cons, $new_cons);
-    my $el = time - $ts;
-    plog( 'homopolish', "Took $el s" );
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'homopolish', "Took $el" );
 
     $curr_cons = $new_cons;
 
@@ -215,8 +219,8 @@ for my $i (1..$n_medaka) {
 
     my $ts = time;
     polish_medaka( $in_base, $curr_cons, $new_cons);
-    my $el = time - $ts;
-    plog( 'medaka', "Round took $el s" );
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'medaka', "Round took $el" );
 
     $curr_cons = $new_cons;
 }
@@ -227,9 +231,13 @@ if (defined $split_below) {
     my $new_cons = "split.fa";
 
     my $ts = time;
+    my $n_start = n_seqs($curr_cons);
     split_below($in_base, $curr_cons, $new_cons, $split_below);
-    my $el = time - $ts;
-    plog( 'split', "Splitting took $el s" );
+    my $n_end = n_seqs($new_cons);
+    my $n_splits = $n_end - $n_start;
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'split', "Splitting took $el" );
+    plog( 'split', "$n_splits splits made" );
 
     $curr_cons = $new_cons;
 
@@ -242,9 +250,13 @@ if ($reduce) {
     my $new_cons = "reduced.fa";
 
     my $ts = time;
+    my $n_start = n_seqs($curr_cons);
     redundans($curr_cons, $new_cons, $min_ident);
-    my $el = time - $ts;
-    plog( 'reduce', "Reduction took $el s" );
+    my $n_end = n_seqs($new_cons);
+    my $n_filt = $n_start - $n_end;
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'reduce', "Reduction took $el" );
+    plog( 'reduce', "$n_filt contigs removed" );
 
     $curr_cons = $new_cons;
 
@@ -257,8 +269,8 @@ if (defined $mask_below) {
 
     my $ts = time;
     mask_below($in_base, $curr_cons, $new_cons, $mask_below);
-    my $el = time - $ts;
-    plog( 'mask', "Masking took $el s" );
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'mask', "Masking took $el" );
 
     $curr_cons = $new_cons;
 
@@ -271,13 +283,19 @@ if (1) {
     my $new_cons = "filtered.fa";
 
     my $ts = time;
+    my $n_start = n_seqs($curr_cons);
     filter_short($curr_cons, $new_cons, $min_len);
-    my $el = time - $ts;
-    plog( 'filter', "Filtering took $el s" );
+    my $n_end = n_seqs($new_cons);
+    my $n_filt = $n_start - $n_end;
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'filter', "Filtering took $el" );
+    plog( 'filter', "$n_filt contigs removed" );
 
     $curr_cons = $new_cons;
 
 }
+
+summarize_assembly($curr_cons);
 
 # copy to final location
 open my $in, '<', $curr_cons;
@@ -365,15 +383,27 @@ sub split_below {
     my $individual_cutoffs;
     if ($split_below < 1 && $split_below > 0) {
 
-        # create one-feature-per-contig BED
+        # create contig interval BED, using sort order from bedgraph
         open my $chr_bed, '>', 'chrs.bed';
-        my $p = BioX::Seq::Stream->new($fi_cons);
-        while (my $seq = $p->next_seq) {
-            say {$chr_bed} join "\t",
-                $seq->id,
-                0,
-                length($seq),
-            ;
+    my @order;
+    open my $cov, '<', 'coverage.bedgraph';
+    while (my $line = <$cov>) {
+            chomp $line;
+        my ($chr, @other) = split "\t", $line;
+            push @order, $chr
+            if (! scalar(@order) || $chr ne $order[-1]);
+        }
+    close $cov;
+        
+        my $p = BioX::Seq::Fetch->new($fi_cons);
+    for my $chr (@order) {
+        my $seq = $p->fetch_seq($chr)
+            // die "Seq $chr missing in input";
+        say {$chr_bed} join "\t",
+            $seq->id,
+            0,
+            length($seq),
+        ;
         }
         close $chr_bed;
 
@@ -449,16 +479,20 @@ sub split_below {
             if ($p->[0] >= $i) {
                 my $sub = $seq->range($i, $p->[0]-1);
                 my $l = length $sub;
-                $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
-                print {$out} $sub->as_fasta;
+        if ($l > 0) {
+                    $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
+                    print {$out} $sub->as_fasta;
+        }
             }
             $i = $p->[1] + 1;
         }
         if ($i <= length($seq)) {
             my $sub = $seq->range($i, length($seq));
             my $l = length $sub;
-            $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
-            print {$out} $sub->as_fasta;
+            if ($l > 0) {
+                $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
+                print {$out} $sub->as_fasta;
+            }
         }
 
     }
@@ -804,6 +838,39 @@ sub save_buff {
 
 }
 
+sub n_seqs {
+
+    my ($fn) = @_;
+    return scalar BioX::Seq::Fetch->new($fn)->ids;
+
+}
+
+sub summarize_assembly {
+
+    my ($fn) = @_;
+
+    my $len_total = 0;
+    my $n_seqs = 0;
+    my $max_len = 0;
+    my $p = BioX::Seq::Stream->new($fn);
+    while (my $seq = $p->next_seq) {
+        my $l = length $seq;
+    ++$n_seqs;
+    $len_total += $l;
+    $max_len = $l if ($l > $max_len);
+    }
+    plog(
+        'final',
+        sprintf(
+            "Final assembly: %s contigs; %s total bp; %s bp longest contig",
+            $n_seqs,
+            $len_total,
+            $max_len,
+        )
+    );
+
+}
+
 __END__
 
 =head1 NAME
@@ -836,15 +903,10 @@ as well as the following binaries:
 =over 1
 
 =item * minimap2
-
 =item * miniasm
-
 =item * racon
-
 =item * medaka
-
 =item * samtools
-
 =item * bedtools
 
 =back
@@ -898,10 +960,13 @@ Minimum contig length to keep (default: 1)
 If given, final assembly positions with coverage depth below this value will
 be hard masked with 'N' (default: off)
 
-=item B<--split_below> I<integer>
+=item B<--split_below> I<float>
 
-If given, contigs will be split at regions with coverage lower than this depth
-(default: off)
+If given, contigs will be split at regions with coverage lower than this
+depth. If value is greater than or equal to one, it is interpreted as a fixed
+cutoff. If value is fractional between zero and one, it is interpreted as a
+fraction of the median read depth, calculated independently for each input
+contig. (default: off)
 
 =item B<--only_split_at_hp>
 
@@ -930,6 +995,34 @@ for data) (default: r941_min_high_g360)
 
 Name of model to be used by homopolish. Has no effect if B<--homopolish> not
 used. (default: R9.4.pkl)
+
+=item B<--noshuffle>
+
+Don't randomly shuffle input reads prior to assembly (default: shuffle)
+
+=item B<--deterministic>
+
+Use a fixed seed for random processes such as shuffling (default: off)
+
+=item B<--reduce>
+
+Apply a reduction algorithm to the pre-final assembly to remove redundant
+contigs (i.e. contigs mostly or completely overlapping with identity above a
+cutoff specified by B<--min_ident>. Currently this is done using Redundans,
+which is required to be installed. (default: off)
+
+=item B<--min_ident> I<float>
+
+Minimum identity (0 to 1) between contigs required to remove shorter contig during
+redundancy reduction. (default: 0.8)
+
+=item B<--minimizer_cutoff> I<integer>
+
+During all-vs-all mapping, discard minimizers occurring above this frequency.
+This is the B<-f> parameter to minimap2, and can be useful with high-coverage
+input datasets that may otherwise consume very large amounts of memory and
+time. A value between 1000 and 10,000 may be useful in these cases. (default:
+off)
 
 =item B<--quiet>
 

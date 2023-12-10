@@ -7,10 +7,13 @@ dependencies:
   - b2b-utils
   - bedtools
   - bwa
+  - cutadapt
   - homopolish
-  - racon
-  - samtools
   - mafft
   - medaka
   - miniasm
   - minimap2
+  - racon
+  - samtools
+  - seqkit
+  - redundans

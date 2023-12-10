@@ -35,13 +35,15 @@ my $min_len  = 1;
 my $hp_model = 'R9.4.pkl';
 my $med_model;
 my $mask_below;
-my $split_below;
+my $split;
 my $only_split_at_hp = 0;
 my $minimizer_cutoff;
 my $reduce = 0;
 my $min_ident = 0.8;
 my $shuffle = 1;
 my $deterministic = 0;
+my $trim_polyN = 0;
+my $polyN_len = 30;
 
 GetOptions(
     #-inputs-----------------------------------------------------------------#
@@ -56,8 +58,8 @@ GetOptions(
     'n_medaka=i'         => \$n_medaka,
     'min_cov=i'          => \$min_cov,
     'min_len=i'          => \$min_len,
-    'mask_below=i'       => \$mask_below,
-    'split_below=f'      => \$split_below,
+    'mask_below=f'       => \$mask_below,
+    'split!'             => \$split,
     'hp_model=s'         => \$hp_model,
     'medaka_model=s'     => \$med_model,
     'only_split_at_hp'   => \$only_split_at_hp,
@@ -65,6 +67,7 @@ GetOptions(
     'reduce'             => \$reduce,
     'min_ident=f'        => \$min_ident,
     'shuffle!'           => \$shuffle,
+    'trim_polyN!'        => \$trim_polyN,
     'deterministic'      => \$deterministic,
     'quiet'              => \$quiet,
     'help'               => sub{ pod2usage(-verbose => 2, -exitval => 0); },
@@ -75,8 +78,15 @@ GetOptions(
 my $MINIMAP2 = can_run('minimap2')
     // die "Minimap2 is required but not found\n";
 
-my $SEQKIT = can_run('seqkit')
-    // die "SeqKit is required but not found\n";
+my $SEQKIT = can_run('seqkit');
+if ($shuffle && ! defined $SEQKIT) {
+    die "SeqKit is required for shuffling but not found\n";
+}
+
+my $CUTADAPT = can_run('cutadapt');
+if ($trim_polyN && ! defined $CUTADAPT) {
+    die "Cutadapt is required for trimming but not found\n";
+}
 
 my $MINIASM = can_run('miniasm');
 if (! defined $fi_consensus && ! defined $MINIASM) {
@@ -94,12 +104,12 @@ if ($n_medaka > 0 && ! defined $MEDAKA) {
 }
 
 my $SAMTOOLS = can_run('samtools');
-if ((defined $mask_below || defined $split_below) && ! defined $SAMTOOLS) {
+if (defined $mask_below && ! defined $SAMTOOLS) {
     die "Samtools is required for masking/splitting but not found\n";
 }
 
 my $BEDTOOLS = can_run('bedtools');
-if ((defined $mask_below || defined $split_below) && ! defined $BEDTOOLS) {
+if (defined $mask_below && ! defined $BEDTOOLS) {
     die "Bedtools is required for masking/splitting but not found\n";
 }
 
@@ -142,7 +152,7 @@ my $in_base = basename($fi_reads);
 my $wd =  File::Temp->newdir(CLEANUP => 1);
 chdir $wd;
 
-if ( $shuffle) {
+if ($shuffle) {
     plog( 'shuffle', 'Shuffle input reads' );
     my $ts = time;
     shuffle( $fi_reads, $in_base );
@@ -153,6 +163,23 @@ if ( $shuffle) {
 }
 else {
     symlink $fi_reads, $in_base;
+}
+
+if ($trim_polyN) {
+    plog( 'trim', 'Trim polyN stretches' );
+    my $ts = time;
+    my $report = trim_polyN( $in_base, 'trimmed.fq' );
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'trim', "Trimming took $el" );
+    plog( 'trim', sprintf(
+        "Trimmed %0.1f%% of reads; Discarded %0.1f%% reads; Discarded %0.1f%% bases",
+        $report->{'w/adapters'} / $report->{in_reads} * 100,
+        ($report->{in_reads} - $report->{out_reads})/$report->{in_reads}*100,
+        ($report->{in_bp} - $report->{out_bp})/$report->{out_bp}*100,
+    ) );
+    unlink $in_base
+        if (abs_path($in_base) ne abs_path($fi_reads));
+    $in_base = 'trimmed.fq';
 }
 
 my $curr_cons = 'init.fa';
@@ -225,19 +252,24 @@ for my $i (1..$n_medaka) {
     $curr_cons = $new_cons;
 }
 
-if (defined $split_below) {
+if (defined $mask_below) {
 
-    plog( 'split', "Splitting at regions with coverage below $split_below" );
-    my $new_cons = "split.fa";
+    my ($v1, $v2) = defined $split
+        ? ('split', 'Splitting')
+        : ('mask', 'Masking');
+    plog( $v1, "$v2 at regions with coverage below $mask_below" );
+    my $new_cons = "mask.fa";
 
     my $ts = time;
     my $n_start = n_seqs($curr_cons);
-    split_below($in_base, $curr_cons, $new_cons, $split_below);
+    mask_below($in_base, $curr_cons, $new_cons, $mask_below, $split);
     my $n_end = n_seqs($new_cons);
     my $n_splits = $n_end - $n_start;
     my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'split', "Splitting took $el" );
-    plog( 'split', "$n_splits splits made" );
+    plog( $v1, "$v2 took $el" );
+    if (defined $split) {
+        plog( 'split', "$n_splits splits made" );
+    }
 
     $curr_cons = $new_cons;
 
@@ -257,20 +289,6 @@ if ($reduce) {
     my $el = Time::Seconds->new(time - $ts)->pretty;
     plog( 'reduce', "Reduction took $el" );
     plog( 'reduce', "$n_filt contigs removed" );
-
-    $curr_cons = $new_cons;
-
-}
-
-if (defined $mask_below) {
-
-    plog( 'mask', "Masking regions with coverage below $mask_below" );
-    my $new_cons = "mask.fa";
-
-    my $ts = time;
-    mask_below($in_base, $curr_cons, $new_cons, $mask_below);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'mask', "Masking took $el" );
 
     $curr_cons = $new_cons;
 
@@ -336,9 +354,9 @@ sub map_ava {
         or die "Initial AVA mapping failed: $!";
 }
 
-sub split_below {
+sub mask_below {
     
-    my ($fi_reads, $fi_cons, $fo_cons, $split_below) = @_;
+    my ($fi_reads, $fi_cons, $fo_cons, $mask_below, $split) = @_;
 
     # map reads against existing consensus
     # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
@@ -347,7 +365,7 @@ sub split_below {
         '-t' => $threads,
         '-a',
         '-x' => 'map-ont',
-        '-o' => 'split.sam',
+        '-o' => 'mask.sam',
         $fi_cons,
         $fi_reads,
     );
@@ -359,7 +377,7 @@ sub split_below {
         'sort',
         '--threads' => $threads,
         '-o' => 'sorted.bam',
-        'split.sam',
+        'mask.sam',
     );
     run( command => \@cmd_sort )
         or die "SAM sorting failed: $!";
@@ -376,34 +394,36 @@ sub split_below {
         = run( command => \@cmd_cov );
     die "Error running bedtools genomecov: $error_message"
         if (! $success);
-    save_buff($stdout_buf, 'coverage.bedgraph');
+    open my $bg, '>', 'coverage.bedgraph';
+    print {$bg} buff_to_str($stdout_buf);
+    close $bg;
 
     # fractional cutoff is interpreted as fraction of median depth,
     # so we need to calculate that here for each contig
     my $individual_cutoffs;
-    if ($split_below < 1 && $split_below > 0) {
+    if ($mask_below < 1 && $mask_below > 0) {
 
         # create contig interval BED, using sort order from bedgraph
         open my $chr_bed, '>', 'chrs.bed';
-    my @order;
-    open my $cov, '<', 'coverage.bedgraph';
-    while (my $line = <$cov>) {
+        my @order;
+        open my $cov, '<', 'coverage.bedgraph';
+        while (my $line = <$cov>) {
             chomp $line;
-        my ($chr, @other) = split "\t", $line;
+            my ($chr, @other) = split "\t", $line;
             push @order, $chr
             if (! scalar(@order) || $chr ne $order[-1]);
         }
-    close $cov;
+        close $cov;
         
         my $p = BioX::Seq::Fetch->new($fi_cons);
-    for my $chr (@order) {
-        my $seq = $p->fetch_seq($chr)
-            // die "Seq $chr missing in input";
-        say {$chr_bed} join "\t",
-            $seq->id,
-            0,
-            length($seq),
-        ;
+        for my $chr (@order) {
+            my $seq = $p->fetch_seq($chr)
+                // die "Seq $chr missing in input";
+            say {$chr_bed} join "\t",
+                $seq->id,
+                0,
+                length($seq),
+            ;
         }
         close $chr_bed;
 
@@ -426,78 +446,109 @@ sub split_below {
         while (my $line = <$stream>) {
             chomp $line;
             my ($chr, $s, $e, $depth) = split "\t", $line;
-            $individual_cutoffs->{$chr} = $depth * $split_below;
+            $individual_cutoffs->{$chr} = $depth * $mask_below;
         }
         close $stream;
 
     }
 
     my %split_points;
+    my $mask;
+    if (! $split) {
+        open $mask, '>', 'mask.bed';
+    }
     open my $stream, '<', 'coverage.bedgraph';
     while (my $line = <$stream>) {
         chomp $line;
         my @fields = split "\t", $line;
         my $cutoff = defined $individual_cutoffs
             ? ($individual_cutoffs->{ $fields[0] } // 0)
-            : $split_below;
+            : $mask_below;
         next if ($fields[3] >= $cutoff);
-        push @{ $split_points{$fields[0]} }, [$fields[1]+1, $fields[2]];
+        if ($split) {
+            push @{ $split_points{$fields[0]} }, [$fields[1]+1, $fields[2]];
+        }
+        else {
+            say {$mask} $line;
+        }
     }
+    close $mask
+    	if (defined $mask);
     close $stream;
 
-    open my $out, '>', $fo_cons;
+    # Here we perform masking only
+    if (! $split) {
 
-    my $p = BioX::Seq::Stream->new($fi_cons);
-    CHR:
-    while (my $seq = $p->next_seq) {
-
-        my $chr = $seq->id;
-        my @points = defined $split_points{$chr}
-            ? @{ $split_points{$chr} }
-            : ();
-        if ($only_split_at_hp) {
-            my @new;
-            my $win = 5;
-            for my $p (@points) {
-                my $hp = 0;
-                for (@$p) {
-                    my $l = $_ > $win ? $_-$win : 1;
-                    my $r = length($seq) - $_ > $win ? $_+$win : length($seq);
-                    my $s = $seq->range($l, $r);
-                    ++$hp if ($s->seq =~ /(\w)(\1{3,})/);
-                }
-                push @new, $p if ($hp > 0);
-            }
-            @points = @new;
-        }
-        if (! scalar @points) {
-            print {$out} $seq->as_fasta;
-            next CHR;
-        }
-        my $i = 1;
-        for my $p (@points) {
-            if ($p->[0] >= $i) {
-                my $sub = $seq->range($i, $p->[0]-1);
-                my $l = length $sub;
-        if ($l > 0) {
-                    $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
-                    print {$out} $sub->as_fasta;
-        }
-            }
-            $i = $p->[1] + 1;
-        }
-        if ($i <= length($seq)) {
-            my $sub = $seq->range($i, length($seq));
-            my $l = length $sub;
-            if ($l > 0) {
-                $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
-                print {$out} $sub->as_fasta;
-            }
-        }
+        # mask consensus
+        my @cmd_mask = (
+            $BEDTOOLS,
+            'maskfasta',
+            '-fi' => $fi_cons,
+            '-bed' => 'mask.bed',
+            '-fo' => $fo_cons,
+        );
+        run( command => \@cmd_mask )
+            or die "Error running bedtools maskfasta: $!";
 
     }
-            
-    close $out;
+
+    # ... or we split the contigs
+    else {
+
+        open my $out, '>', $fo_cons;
+
+        my $p = BioX::Seq::Stream->new($fi_cons);
+        CHR:
+        while (my $seq = $p->next_seq) {
+
+            my $chr = $seq->id;
+            my @points = defined $split_points{$chr}
+                ? @{ $split_points{$chr} }
+                : ();
+            if ($only_split_at_hp) {
+                my @new;
+                my $win = 5;
+                for my $p (@points) {
+                    my $hp = 0;
+                    for (@$p) {
+                        my $l = $_ > $win ? $_-$win : 1;
+                        my $r = length($seq) - $_ > $win ? $_+$win : length($seq);
+                        my $s = $seq->range($l, $r);
+                        ++$hp if ($s->seq =~ /(\w)(\1{3,})/);
+                    }
+                    push @new, $p if ($hp > 0);
+                }
+                @points = @new;
+            }
+            if (! scalar @points) {
+                print {$out} $seq->as_fasta;
+                next CHR;
+            }
+            my $i = 1;
+            for my $p (@points) {
+                if ($p->[0] >= $i) {
+                    my $sub = $seq->range($i, $p->[0]-1);
+                    my $l = length $sub;
+            if ($l > 0) {
+                        $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
+                        print {$out} $sub->as_fasta;
+            }
+                }
+                $i = $p->[1] + 1;
+            }
+            if ($i <= length($seq)) {
+                my $sub = $seq->range($i, length($seq));
+                my $l = length $sub;
+                if ($l > 0) {
+                    $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
+                    print {$out} $sub->as_fasta;
+                }
+            }
+
+        }
+                
+        close $out;
+    }
 
 }
     
@@ -654,73 +705,6 @@ sub transfer_annots {
 
 }
 
-sub mask_below {
-    
-    my ($fi_reads, $fi_cons, $fo_cons, $min_depth) = @_;
-
-    # map reads against existing consensus
-    # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
-    my @cmd_mm = (
-        $MINIMAP2,
-        '-t' => $threads,
-        '-a',
-        '-x' => 'map-ont',
-        '-o' => 'mask.sam',
-        $fi_cons,
-        $fi_reads,
-    );
-    run( command => \@cmd_mm )
-        or die "consensus read mapping failed: $!";
-
-    my @cmd_sort = (
-        $SAMTOOLS,
-        'sort',
-        '--threads' => $threads,
-        '-o' => 'sorted.bam',
-        'mask.sam',
-    );
-    run( command => \@cmd_sort )
-        or die "SAM sorting failed: $!";
-
-    my @cmd_cov = (
-        $BEDTOOLS,
-        'genomecov',
-        '-ibam' => 'sorted.bam',
-        '-split',
-        '-bga',
-    );
-    my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
-        = run( command => \@cmd_cov );
-    die "Error running bedtools genomecov: $error_message"
-        if (! $success);
-
-    open my $out, '>', 'mask.bed';
-    # this hack is necessary to process output by line; otherwise buffering can
-    # cause incomplete lines to be processed
-    my $stdout = join '', @{ $stdout_buf};
-    open my $stream, '<', \$stdout;
-    while (my $line = <$stream>) {
-        chomp $line;
-        my @fields = split "\t", $line;
-        next if ($fields[3] >= $min_depth);
-        say {$out} $line;
-    }
-    close $out;
-    close $stream;
-
-    # mask consensus
-    my @cmd_mask = (
-        $BEDTOOLS,
-        'maskfasta',
-        '-fi' => $fi_cons,
-        '-bed' => 'mask.bed',
-        '-fo' => $fo_cons,
-    );
-    run( command => \@cmd_mask )
-        or die "Error running bedtools maskfasta: $!";
-
-}
-
 sub shuffle {
     
     my ($fi_reads, $fo_reads) = @_;
@@ -735,6 +719,45 @@ sub shuffle {
     );
     run( command => \@cmd )
         or die "shuffle failed: $!";
+
+}
+sub trim_polyN {
+    
+    my ($fi_reads, $fo_reads) = @_;
+
+    my @cmd = (
+        $CUTADAPT,
+        '-b' => "A{$polyN_len}",
+        '-b' => "T{$polyN_len}",
+        '-b' => "G{$polyN_len}",
+        '-b' => "C{$polyN_len}",
+        '--times' => '50',
+        '--minimum-length' => '100',
+        '--report' => 'minimal',
+        '-o' => $fo_reads,
+        $fi_reads,
+    );
+    run( command => \@cmd )
+        or die "shuffle failed: $!";
+    my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
+        = run( command => \@cmd );
+    die "Error running cutadapt: $error_message"
+        if (! $success);
+    my $so = buff_to_str($stdout_buf);
+    my ($k, $v, @other) = split /\n/, $so;
+    my %report;
+    @report{ split "\t", $k } = split "\t", $v;
+    for my $field (
+        'in_reads',
+        'out_reads',
+        'in_bp',
+        'out_bp',
+        'w/adapters'
+    ) {
+        die "Missing field $field in cutadapt report\n"
+            if (! defined $report{$field});
+    }
+    return \%report;
 
 }
 
@@ -799,17 +822,14 @@ sub redundans {
     my @cmd = (
         $REDUNDANS,
         '-t' => $threads,
-        '--nogapscaffolding',
+        '--noscaffolding',
         '--nogapclosing',
         '--identity' => $min_ident,
         '-f' => $fi_cons,
         '-o' => 'reduced',
     );
-    if (defined $med_model) {
-        push @cmd, '-m' => $med_model;
-    }
     run( command => \@cmd )
-        or die "Call to medaka failed: $!";
+        or die "Call to redundans failed: $!";
 
     # transfer annotations dropped by redundans
     transfer_annots(
@@ -828,13 +848,10 @@ sub plog {
 
 }
 
-sub save_buff {
+sub buff_to_str {
 
     my ($buff, $fn) = @_;
-
-    open my $out, '>', $fn;
-    print {$out} join '', @{ $buff };
-    close $out;
+    return join '', @{ $buff };
 
 }
 
@@ -894,20 +911,36 @@ Requires the following non-core Perl libraries:
 
 =over 1
 
-=item * BioX::Seq
+=item BioX::Seq
 
 =back
 
-as well as the following binaries:
+Additionally, the following external programs are required for one or more of
+the optional processing modules (errors will be thrown for missing programs
+only if that module is requested). All optional dependencies are available in
+Bioconda.
 
 =over 1
 
-=item * minimap2
-=item * miniasm
-=item * racon
-=item * medaka
-=item * samtools
-=item * bedtools
+=item minimap2
+
+=item miniasm
+
+=item racon
+
+=item medaka
+
+=item samtools
+
+=item bedtools
+
+=item seqkit
+
+=item redundans
+
+=item cutadapt
+
+=item homopolish
 
 =back
 
@@ -960,17 +993,14 @@ Minimum contig length to keep (default: 1)
 If given, final assembly positions with coverage depth below this value will
 be hard masked with 'N' (default: off)
 
-=item B<--split_below> I<float>
+=item B<--split> I<float>
 
-If given, contigs will be split at regions with coverage lower than this
-depth. If value is greater than or equal to one, it is interpreted as a fixed
-cutoff. If value is fractional between zero and one, it is interpreted as a
-fraction of the median read depth, calculated independently for each input
-contig. (default: off)
+If given in conjunction with C<--mask_below>, splits contigs at masked regions
+into smaller pieces. (default: off)
 
 =item B<--only_split_at_hp>
 
-If given in conjuction with C<--split_below>, only splits low coverage regions
+If given in conjuction with C<--split>, only splits low coverage regions
 if one or both junctions is at a homopolymer stretch
 (default: off)
 
@@ -999,6 +1029,10 @@ used. (default: R9.4.pkl)
 =item B<--noshuffle>
 
 Don't randomly shuffle input reads prior to assembly (default: shuffle)
+
+=item B<--trim_polyN>
+
+Trim long poly-N stretches from reads prior to assembly (default: off)
 
 =item B<--deterministic>
 

@@ -80,3 +80,6 @@
 \bdev
 ^\.
 ^bin/alpha/
+^docs/
+^environment.yml
+^make_docs.pl

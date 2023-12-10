@@ -4,7 +4,7 @@
       "Jeremy Volkening <jeremy.volkening@base2bio.com>"
    ],
    "dynamic_config" : 1,
-   "generated_by" : "Module::Build version 0.4231",
+   "generated_by" : "Module::Build version 0.4232",
    "license" : [
       "gpl_3"
    ],
@@ -36,10 +36,13 @@
    },
    "release_status" : "stable",
    "resources" : {
+      "license" : [
+         "http://www.gnu.org/licenses/gpl-3.0.txt"
+      ],
       "repository" : {
          "url" : "https://github.com/jvolkening/b2b-utils"
       }
    },
-   "version" : "0.018",
-   "x_serialization_backend" : "JSON::PP version 4.04"
+   "version" : "0.019",
+   "x_serialization_backend" : "JSON::PP version 4.16"
 }

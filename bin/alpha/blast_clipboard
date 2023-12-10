@@ -36,7 +36,7 @@ open my $stream, '-|',  @cmd;
 while (my $line = <$stream>) {
     chomp $line;
     # sanity check returned contents
-    exit 2 if ($line !~ /^(>|([A-Z]*\z))/);
+    exit 2 if ($line !~ /^(>|([A-Z]*\z))/i);
     $query .= $line . '&#13;';
 }
 close $stream

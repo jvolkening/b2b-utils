@@ -44,6 +44,8 @@ my $shuffle = 1;
 my $deterministic = 0;
 my $trim_polyN = 0;
 my $polyN_len = 30;
+my $max_chunk_size;
+my $iterations = 1;
 
 GetOptions(
     #-inputs-----------------------------------------------------------------#
@@ -65,6 +67,8 @@ GetOptions(
     'only_split_at_hp'   => \$only_split_at_hp,
     'minimizer_cutoff=i' => \$minimizer_cutoff,
     'reduce'             => \$reduce,
+    'iterations=i'       => \$iterations,
+    'chunk_size=i'       => \$max_chunk_size,
     'min_ident=f'        => \$min_ident,
     'shuffle!'           => \$shuffle,
     'trim_polyN!'        => \$trim_polyN,
@@ -210,6 +214,33 @@ if (! -s $curr_cons) {
     exit;
 }
 
+# perform secondary assemblies if requested
+for my $i (2..$iterations) {
+    plog( 'assembly', "Meta-assembly iteration $i" );
+    my $new_cons = "iter$i.fa";
+    my $ts = time;
+    map_ava( $curr_cons, 'init.paf' );
+    my $min_cov_prev = $min_cov;
+    $min_cov = 1;
+    miniasm( $curr_cons, 'init.paf', $new_cons );
+    $min_cov = $min_cov_prev;
+    my $n = n_seqs($new_cons);
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'assembly', "Meta-assembly took $el" );
+    plog( 'assembly', "Assembled $n contigs" );
+    $curr_cons = $new_cons;
+}
+
+# bail out gracefully if re-assembly is empty
+if (! -s $curr_cons) {
+    plog( 'assembly', "Re-assembly empty, skipping polishing" );
+    if (defined $fo_consensus) {
+        copy $curr_cons, $fo_consensus;
+    }
+    chdir $init_dir;
+    exit;
+}
+
 # racon polishing
 plog( 'racon', "Polishing with racon ($n_racon rounds total)" );
 for my $i (1..$n_racon) {
@@ -347,8 +378,8 @@ sub map_ava {
         '-x' => 'ava-ont',
         '-o' => $fo,
         @fmax,
-        $in_base,
-        $in_base,
+        $fi,
+        $fi,
     );
     run( command => \@cmd )
         or die "Initial AVA mapping failed: $!";

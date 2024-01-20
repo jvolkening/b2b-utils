@@ -17,7 +17,7 @@ use List::Util qw/min/;
 use Pod::Usage;
 use Time::Seconds;
 
-our $VERSION = 0.009;
+our $VERSION = 0.010;
 use constant PROGRAM => 'minimeta';
 
 #-inputs---------------------------------------------------------------------#
@@ -46,7 +46,8 @@ my $deterministic = 0;
 my $trim_polyN = 0;
 my $polyN_len = 30;
 my $chunk_size;
-my $iterations = 1;
+my $reassemblies = 0;
+my $medaka_batch_size = 100;
 
 GetOptions(
     #-inputs-----------------------------------------------------------------#
@@ -56,28 +57,29 @@ GetOptions(
     #-outputs----------------------------------------------------------------#
     'out=s' => \$fo_consensus,
     #-knobs------------------------------------------------------------------#
-    'threads=i'          => \$threads,
-    'n_racon=i'          => \$n_racon,
-    'n_medaka=i'         => \$n_medaka,
-    'min_cov=i'          => \$min_cov,
-    'min_len=i'          => \$min_len,
-    'mask_below=f'       => \$mask_below,
-    'split!'             => \$split,
-    'hp_model=s'         => \$hp_model,
-    'medaka_model=s'     => \$med_model,
-    'only_split_at_hp'   => \$only_split_at_hp,
-    'minimizer_cutoff=i' => \$minimizer_cutoff,
-    'reduce'             => \$reduce,
-    'iterations=i'       => \$iterations,
-    'chunk_size=i'       => \$chunk_size,
-    'min_ident=f'        => \$min_ident,
-    'shuffle!'           => \$shuffle,
-    'trim_polyN!'        => \$trim_polyN,
-    'deterministic'      => \$deterministic,
-    'quiet'              => \$quiet,
-    'help'               => sub{ pod2usage(-verbose => 2, -exitval => 0); },
-    'version'            => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
-) or pod2usage( -verbose => 1);
+    'threads=i'           => \$threads,
+    'n_racon=i'           => \$n_racon,
+    'n_medaka=i'          => \$n_medaka,
+    'min_cov=i'           => \$min_cov,
+    'min_len=i'           => \$min_len,
+    'mask_below=f'        => \$mask_below,
+    'split!'              => \$split,
+    'hp_model=s'          => \$hp_model,
+    'medaka_model=s'      => \$med_model,
+    'only_split_at_hp'    => \$only_split_at_hp,
+    'minimizer_cutoff=i'  => \$minimizer_cutoff,
+    'reduce'              => \$reduce,
+    'reassemblies=i'      => \$reassemblies,
+    'chunk_size=i'        => \$chunk_size,
+    'min_ident=f'         => \$min_ident,
+    'shuffle!'            => \$shuffle,
+    'trim_polyN!'         => \$trim_polyN,
+    'medaka_batch_size=i' => \$medaka_batch_size,
+    'deterministic'       => \$deterministic,
+    'quiet'               => \$quiet,
+    'help'                => sub{ pod2usage(-verbose => 2, -exitval => 0); },
+    'version'             => sub{ say 'This is ',PROGRAM,' v', $VERSION; exit },
+) or pod2usage( -verbose  => 1);
 
 # check for required software
 my $MINIMAP2 = can_run('minimap2')
@@ -157,273 +159,79 @@ my $in_base = basename($fi_reads);
 my $wd =  File::Temp->newdir(CLEANUP => 1);
 chdir $wd;
 
+# Preprocess reads, as asked
 if ($shuffle) {
-    plog( 'shuffle', 'Shuffle input reads' );
-    my $ts = time;
-    shuffle( $fi_reads, $in_base );
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'shuffle', "Shuffle took $el" );
-
-
+    $in_base = shuffle( $fi_reads );
 }
 else {
     symlink $fi_reads, $in_base;
 }
-
 if ($trim_polyN) {
-    plog( 'trim', 'Trim polyN stretches' );
-    my $ts = time;
-    my $report = trim_polyN( $in_base, 'trimmed.fq' );
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'trim', "Trimming took $el" );
-    plog( 'trim', sprintf(
-        "Trimmed %0.1f%% of reads; Discarded %0.1f%% reads; Discarded %0.1f%% bases",
-        $report->{'w/adapters'} / $report->{in_reads} * 100,
-        ($report->{in_reads} - $report->{out_reads})/$report->{in_reads}*100,
-        ($report->{in_bp} - $report->{out_bp})/$report->{out_bp}*100,
-    ) );
-    unlink $in_base
-        if (abs_path($in_base) ne abs_path($fi_reads));
-    $in_base = 'trimmed.fq';
+    $in_base = trim_polyN( $in_base );
 }
 
-my $curr_cons = 'init.fa';
+# $in_base now points to (processed) reads
+my $curr_cons = File::Temp->new();
+close $curr_cons;
 
 # initial assembly
 if (defined $fi_consensus) {
-    copy $fi_consensus, $curr_cons;
+    copy $fi_consensus, "$curr_cons";
     plog( 'assembly', "Using provided assembly" );
 }
-
-elsif (defined $chunk_size) {
-
-    my $p = BioX::Seq::Stream->new($in_base);
-    my $curr_tmp = File::Temp->new(UNLINK => 1);
-    my $curr_n = 0;
-    my @assemblies;
-    my $i = 1;
-    while (my $seq = $p->next_seq) {
-        print {$curr_tmp} $seq->as_input;
-        ++$curr_n;
-        if ($curr_n >= $chunk_size) {
-            close $curr_tmp;
-            my $ass = File::Temp->new(UNLINK => 1);
-            close $ass;
-            plog( 'sub-assembly', "Sub-assembly $i with miniasm" );
-            my $ts = time;
-            map_ava( $curr_tmp, 'init.paf' );
-            miniasm( $curr_tmp, 'init.paf', $ass );
-            my $n = n_seqs($ass);
-            my $el = Time::Seconds->new(time - $ts)->pretty;
-            plog( 'sub-assembly', "Sub-assembly $i took $el" );
-            plog( 'sub-assembly', "Assembled $n contigs" );
-            push @assemblies, $ass;
-            ++$i;
-            $curr_n = 0;
-            $curr_tmp = File::Temp->new(UNLINK => 1);
-        }
-    }
-    if ($curr_n >= 1) {
-        close $curr_tmp;
-        my $ass = File::Temp->new(UNLINK => 1);
-        close $ass;
-        plog( 'sub-assembly', "Sub-assembly $i with miniasm" );
-        my $ts = time;
-        map_ava( $curr_tmp, 'init.paf' );
-        miniasm( $curr_tmp, 'init.paf', $ass );
-        my $n = n_seqs($ass);
-        my $el = Time::Seconds->new(time - $ts)->pretty;
-        plog( 'sub-assembly', "Sub-assembly $i took $el" );
-        plog( 'sub-assembly', "Assembled $n contigs" );
-        push @assemblies, $ass;
-        ++$i;
-        $curr_n = 0;
-    }
-    my $tmp_combined = File::Temp->new(UNLINK => 1);
-    my $ci = 0;
-    for my $ass (@assemblies) {
-        my $p = BioX::Seq::Stream->new("$ass");
-        while (my $seq = $p->next_seq) {
-            $seq->id = sprintf("c%s", $ci++);
-            print {$tmp_combined} $seq->as_fasta;
-        }
-    }
-    close $tmp_combined;
-    my $tmp_pseudo = File::Temp->new(UNLINK => 1);
-    close $tmp_pseudo;
-    generate_pseudoreads(
-        $tmp_combined,
-        $tmp_pseudo,
-    );
-            
-    plog( 'assembly', 'Initial assembly with miniasm' );
-    my $ts = time;
-    my $min_cov_orig = $min_cov;
-    $min_cov = 1;
-    map_ava( $tmp_pseudo, 'init.paf' );
-    miniasm( $tmp_pseudo, 'init.paf', $curr_cons );
-    $min_cov = $min_cov_orig;
-    my $n = n_seqs($curr_cons);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'assembly', "Assembly took $el" );
-    plog( 'assembly', "Assembled $n contigs" );
-
-}
-
 else {
-    plog( 'assembly', 'Initial assembly with miniasm' );
-    my $ts = time;
-    map_ava( $in_base, 'init.paf' );
-    miniasm( $in_base, 'init.paf', $curr_cons );
-    my $n = n_seqs($curr_cons);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'assembly', "Assembly took $el" );
-    plog( 'assembly', "Assembled $n contigs" );
+    $curr_cons = defined $chunk_size
+        ? assemble_chunked( $in_base )
+        : assemble( $in_base );
 }
 
-# bail out gracefully if initial assembly is empty
-if (! -s $curr_cons) {
-    plog( 'assembly', "Initial assembly empty, skipping polishing" );
-    if (defined $fo_consensus) {
-        copy $curr_cons, $fo_consensus;
-    }
-    chdir $init_dir;
-    exit;
-}
+check_empty($curr_cons);
 
 # perform secondary assemblies if requested
-for my $i (2..$iterations) {
-    plog( 'assembly', "Meta-assembly iteration $i" );
-    my $new_cons = "iter$i.fa";
-    my $ts = time;
-    map_ava( $curr_cons, 'init.paf' );
-    my $min_cov_prev = $min_cov;
-    $min_cov = 1;
-    miniasm( $curr_cons, 'init.paf', $new_cons );
-    $min_cov = $min_cov_prev;
-    my $n = n_seqs($new_cons);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'assembly', "Meta-assembly took $el" );
-    plog( 'assembly', "Assembled $n contigs" );
-    $curr_cons = $new_cons;
+for my $i (1..$reassemblies) {
+    my $pseudoreads = generate_pseudoreads($curr_cons);
+    $curr_cons = assemble( $pseudoreads, 're-assembly' );
 }
 
-# bail out gracefully if re-assembly is empty
-if (! -s $curr_cons) {
-    plog( 'assembly', "Re-assembly empty, skipping polishing" );
-    if (defined $fo_consensus) {
-        copy $curr_cons, $fo_consensus;
-    }
-    chdir $init_dir;
-    exit;
-}
+check_empty($curr_cons);
 
 # racon polishing
-plog( 'racon', "Polishing with racon ($n_racon rounds total)" );
 for my $i (1..$n_racon) {
-    my $new_cons = "rc$i.fa";
-
-    my $ts = time;
-    polish_racon( $in_base, $curr_cons, $new_cons);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'racon', "Round took $el"  );
-
-    $curr_cons = $new_cons;
+    $curr_cons = racon( $in_base, $curr_cons );
 }
 
+# homopolishing
 if (defined $fi_homopolish) {
-
-    # homopolishing
-    plog( 'homopolish', "Polishing with homopolish" );
-    my $new_cons = "hp.fa";
-
-    my $ts = time;
-    homopolish( $fi_homopolish, $curr_cons, $new_cons);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'homopolish', "Took $el" );
-
-    $curr_cons = $new_cons;
-
+    $curr_cons = homopolish( $fi_homopolish, $curr_cons );
 }
 
 # medaka polishing
-plog( 'medaka', "Polishing with medaka ($n_medaka rounds total)" );
 for my $i (1..$n_medaka) {
-
-    my $new_cons = "md$i.fa";
-
-    my $ts = time;
-    polish_medaka( $in_base, $curr_cons, $new_cons);
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'medaka', "Round took $el" );
-
-    $curr_cons = $new_cons;
+    $curr_cons = medaka( $in_base, $curr_cons );
 }
 
+# coverage masking/splitting
 if (defined $mask_below) {
-
-    my ($v1, $v2) = defined $split
-        ? ('split', 'Splitting')
-        : ('mask', 'Masking');
-    plog( $v1, "$v2 at regions with coverage below $mask_below" );
-    my $new_cons = "mask.fa";
-
-    my $ts = time;
-    my $n_start = n_seqs($curr_cons);
-    mask_below($in_base, $curr_cons, $new_cons, $mask_below, $split);
-    my $n_end = n_seqs($new_cons);
-    my $n_splits = $n_end - $n_start;
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( $v1, "$v2 took $el" );
-    if (defined $split) {
-        plog( 'split', "$n_splits splits made" );
-    }
-
-    $curr_cons = $new_cons;
-
+    $curr_cons = mask_below(
+        $in_base,
+        $curr_cons,
+        $mask_below,
+        $split
+    );
 }
 
 # Redundans reduction
 if ($reduce) {
-
-    plog( 'reduce', "Removing redundant contigs with identity above $min_ident" );
-    my $new_cons = "reduced.fa";
-
-    my $ts = time;
-    my $n_start = n_seqs($curr_cons);
-    redundans($curr_cons, $new_cons, $min_ident);
-    my $n_end = n_seqs($new_cons);
-    my $n_filt = $n_start - $n_end;
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'reduce', "Reduction took $el" );
-    plog( 'reduce', "$n_filt contigs removed" );
-
-    $curr_cons = $new_cons;
-
+    $curr_cons = redundans( $curr_cons, $min_ident );
 }
 
-#always run this, and run it last, since we rename the contigs as well
-if (1) {
+# always run this, and run it last, since we rename the contigs as well
+$curr_cons = filter_short( $curr_cons, $min_len );
 
-    plog( 'filter', "Filtering contigs shorter than $min_len" );
-    my $new_cons = "filtered.fa";
-
-    my $ts = time;
-    my $n_start = n_seqs($curr_cons);
-    filter_short($curr_cons, $new_cons, $min_len);
-    my $n_end = n_seqs($new_cons);
-    my $n_filt = $n_start - $n_end;
-    my $el = Time::Seconds->new(time - $ts)->pretty;
-    plog( 'filter', "Filtering took $el" );
-    plog( 'filter', "$n_filt contigs removed" );
-
-    $curr_cons = $new_cons;
-
-}
-
+# log final statistics
 summarize_assembly($curr_cons);
 
-# copy to final location
+# write to final destination
 open my $in, '<', $curr_cons;
 my $fh_out = \*STDOUT;
 if (defined $fo_consensus) {
@@ -437,13 +245,96 @@ while (my $line = <$in>) {
 chdir $init_dir;
 exit;
 
-# minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
-# racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
+sub assemble {
 
-# minimap2 -x ava-ont trimmed.fq trimmed.fq > trim.paf
+    my ($fi_reads, $log) = @_;
+
+    $log //= 'assembly';
+    plog( $log, ucfirst( "$log with miniasm" ) );
+    my $ts = time;
+
+    my $paf = map_ava( $fi_reads );
+    my $cons = miniasm( $fi_reads, $paf );
+
+    my $n = n_seqs($cons);
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( $log, ucfirst( "$log took $el" ) );
+    plog( $log, "Assembled $n contigs" );
+
+    return $cons;
+
+}
+
+sub assemble_chunked {
+
+    my ($fi_reads) = @_;
+
+    my $p = BioX::Seq::Stream->new($fi_reads);
+    my $curr_chunk = File::Temp->new();
+    my $curr_n = 0;
+    my @assemblies;
+    my $i = 1;
+    while (my $seq = $p->next_seq) {
+        print {$curr_chunk} $seq->as_input;
+        ++$curr_n;
+        if ($curr_n >= $chunk_size) {
+            close $curr_chunk;
+            push @assemblies, assemble( $curr_chunk, 'sub-assembly' );
+            ++$i;
+            $curr_n = 0;
+            $curr_chunk = File::Temp->new();
+        }
+    }
+    # process last chunk
+    if ($curr_n >= 1) {
+        close $curr_chunk;
+        push @assemblies, assemble( $curr_chunk, 'sub-assembly' );
+    }
+
+    # combine assemblies into single FASTA
+    my $tmp_combined = File::Temp->new();
+    my $ci = 0;
+    for my $ass (@assemblies) {
+        my $p = BioX::Seq::Stream->new("$ass");
+        while (my $seq = $p->next_seq) {
+            $seq->id = sprintf("c%s", $ci++);
+            print {$tmp_combined} $seq->as_fasta;
+        }
+    }
+    close $tmp_combined;
+
+    # shred contigs into pseudo-reads
+    my $pseudoreads = generate_pseudoreads( $tmp_combined );
+    my $min_cov_orig = $min_cov;
+    $min_cov = 1;
+    my $cons = assemble( $pseudoreads, 're-assembly' );
+    $min_cov = $min_cov_orig;
+
+    return $cons;
+
+}
+
+sub check_empty {
+    
+    my ($fi) = @_;
+
+    return if (-s "$fi");
+
+    plog( 'warning', "Assembly empty, skipping polishing" );
+    if (defined $fo_consensus) {
+        copy "$fi", $fo_consensus;
+    }
+    chdir $init_dir;
+    exit;
+
+}
+
 sub map_ava {
     
-    my ($fi, $fo) = @_;
+    my ($fi) = @_;
+
+    my $tmp_out = File::Temp->new();
+    close $tmp_out;
 
     my @fmax = ();
     if (defined $minimizer_cutoff) {
@@ -453,21 +344,29 @@ sub map_ava {
         $MINIMAP2,
         '-t' => $threads,
         '-x' => 'ava-ont',
-        '-o' => "$fo",
+        '-o' => "$tmp_out",
         @fmax,
         "$fi",
         "$fi",
     );
     my $res = run_forked( \@cmd );
     if ($res->{exit_code} != 0) {
-        "Initial AVA mapping failed: $res->{err_msg}";
+        die "Initial AVA mapping failed: $res->{err_msg}";
     }
+
+    return $tmp_out;
 }
 
 sub mask_below {
     
-    my ($fi_reads, $fi_cons, $fo_cons, $mask_below, $split) = @_;
+    my ($fi_reads, $fi_cons, $mask_below, $split) = @_;
 
+    my ($v1, $v2) = defined $split
+        ? ('split', 'Splitting')
+        : ('mask', 'Masking');
+    plog( $v1, "$v2 at regions with coverage below $mask_below" );
+
+    my $ts = time;
     # map reads against existing consensus
     # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
     my @cmd_mm = (
@@ -491,7 +390,6 @@ sub mask_below {
     );
     run( command => \@cmd_sort )
         or die "SAM sorting failed: $!";
-
 
     my @cmd_cov = (
         $BEDTOOLS,
@@ -586,8 +484,12 @@ sub mask_below {
     	if (defined $mask);
     close $stream;
 
+    my $tmp_out = File::Temp->new();
+
     # Here we perform masking only
     if (! $split) {
+
+        close $tmp_out;
 
         # mask consensus
         my @cmd_mask = (
@@ -595,7 +497,7 @@ sub mask_below {
             'maskfasta',
             '-fi' => $fi_cons,
             '-bed' => 'mask.bed',
-            '-fo' => $fo_cons,
+            '-fo' => "$tmp_out",
         );
         run( command => \@cmd_mask )
             or die "Error running bedtools maskfasta: $!";
@@ -604,8 +506,6 @@ sub mask_below {
 
     # ... or we split the contigs
     else {
-
-        open my $out, '>', $fo_cons;
 
         my $p = BioX::Seq::Stream->new($fi_cons);
         CHR:
@@ -631,7 +531,7 @@ sub mask_below {
                 @points = @new;
             }
             if (! scalar @points) {
-                print {$out} $seq->as_fasta;
+                print {$tmp_out} $seq->as_fasta;
                 next CHR;
             }
             my $i = 1;
@@ -639,10 +539,11 @@ sub mask_below {
                 if ($p->[0] >= $i) {
                     my $sub = $seq->range($i, $p->[0]-1);
                     my $l = length $sub;
-            if ($l > 0) {
+                    if ($l > 0) {
+                        $sub->desc //= "LN:i:$l";
                         $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
-                        print {$out} $sub->as_fasta;
-            }
+                        print {$tmp_out} $sub->as_fasta;
+                    }
                 }
                 $i = $p->[1] + 1;
             }
@@ -651,21 +552,32 @@ sub mask_below {
                 my $l = length $sub;
                 if ($l > 0) {
                     $sub->desc =~ s/\bLN:i:\d+\b/LN:i:$l/;
-                    print {$out} $sub->as_fasta;
+                    print {$tmp_out} $sub->as_fasta;
                 }
             }
 
         }
                 
-        close $out;
+        close $tmp_out;
     }
+
+    my $n_start = n_seqs($fi_cons);
+    my $n_end = n_seqs($tmp_out);
+    my $n_splits = $n_end - $n_start;
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( $v1, "$v2 took $el" );
+    if (defined $split) {
+        plog( 'split', "$n_splits splits made" );
+    }
+
+    return $tmp_out;
 
 }
     
 
 sub miniasm {
     
-    my ($fi_reads, $fi_paf, $fo) = @_;
+    my ($fi_reads, $fi_paf) = @_;
 
     my @cmd = (
         $MINIASM,
@@ -683,7 +595,7 @@ sub miniasm {
         if (! $success);
 
     # convert GFA to FASTA
-    open my $out, '>', "$fo";
+    my $tmp_out = File::Temp->new();
     # this hack is necessary to process output by line; otherwise buffering can
     # cause incomplete lines to be processed
     my $stdout = join '', @{ $stdout_buf};
@@ -692,20 +604,25 @@ sub miniasm {
         chomp $line;
         my @fields = split "\t", $line;
         next if ($fields[0] ne 'S');
-        print {$out} BioX::Seq->new(
+        print {$tmp_out} BioX::Seq->new(
             $fields[2],
             $fields[1],
             $fields[3],
         )->as_fasta;
     }
-    close $out;
+    close $tmp_out;
     close $stream;
+
+    return $tmp_out;
 
 }
 
-sub polish_racon {
+sub racon {
     
-    my ($fi_reads, $fi_cons, $fo_cons) = @_;
+    my ($fi_reads, $fi_cons) = @_;
+
+    plog( 'racon', "Polishing with racon" );
+    my $ts = time;
 
     # map reads against existing consensus
     # minimap2 -ax map-ont trim.fa trimmed.fq > rc.sam
@@ -741,28 +658,36 @@ sub polish_racon {
     die "Error running racon: $error_message"
         if (! $success);
 
-    open my $out, '>', $fo_cons;
+    my $tmp_out = File::Temp->new();
     # this hack is necessary to process output by line; otherwise buffering can
     # cause incomplete lines to be processed
     my $stdout = join '', @{ $stdout_buf};
     open my $stream, '<', \$stdout;
     while (my $line = <$stream>) {
-        print {$out} $line;
+        print {$tmp_out} $line;
     }
-    close $out;
+    close $tmp_out;
     close $stream;
+
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'racon', "Round took $el"  );
+
+    return $tmp_out;
 
 }
 
-# medaka_consensus -i trimmed.fq -d rc2.fa -o polished
-sub polish_medaka {
+sub medaka {
 
-    my ($fi_reads, $fi_cons, $fo_cons) = @_;
+    my ($fi_reads, $fi_cons) = @_;
+
+    plog( 'medaka', "Polishing with medaka" );
+    my $ts = time;
 
     my @cmd = (
         $MEDAKA,
         '-t' => $threads,
         '-f',
+        '-b' => $medaka_batch_size,
         '-i' => $fi_reads,
         '-d' => $fi_cons,
         '-o' => 'polished',
@@ -774,19 +699,23 @@ sub polish_medaka {
         or die "Call to medaka failed: $!";
 
     # transfer annotations dropped by Medaka
-    transfer_annots(
+    my $cons = transfer_annots(
         $fi_cons,
         'polished/consensus.fasta',
-        $fo_cons
     );
+
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'medaka', "Round took $el"  );
+
+    return $cons;
 
 }
 
 sub transfer_annots {
 
-    my ($fn_old, $fn_new, $fn_out, $strip_suffix) = @_;
+    my ($fn_old, $fn_new, $strip_suffix) = @_;
 
-    open my $fh_out, '>', $fn_out;
+    my $tmp_out = File::Temp->new();
 
     # read annotations from input contigs
     my %annots;
@@ -808,32 +737,51 @@ sub transfer_annots {
         $tags =~ s/\bLN:i:\d+\b/LN:i:$l/;
         $seq->desc = join ' ',
             grep {defined $_ && length $_} $seq->desc, $tags;
-        print {$fh_out} $seq->as_fasta;
+        print {$tmp_out} $seq->as_fasta;
     }
 
-    close $fh_out;
+    close $tmp_out;
+    return $tmp_out;
 
 }
 
 sub shuffle {
     
-    my ($fi_reads, $fo_reads) = @_;
+    my ($fi_reads) = @_;
+
+    plog( 'shuffle', 'Shuffle input reads' );
+    my $ts = time;
+
+    my $tmp_out = File::Temp->new();
+    close $tmp_out;
 
     my $seed = $deterministic ? 22 : int(rand(999999));
     my @cmd = (
         $SEQKIT,
         'shuffle',
         '-s' => $seed,
-        '-o' => $fo_reads,
-        $fi_reads,
+        '-o' => "$tmp_out",
+        "$fi_reads",
     );
     run( command => \@cmd )
         or die "shuffle failed: $!";
 
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'shuffle', "Shuffle took $el" );
+
+    return $tmp_out;
+
 }
+
 sub trim_polyN {
     
-    my ($fi_reads, $fo_reads) = @_;
+    my ($fi_reads) = @_;
+
+    plog( 'trim', 'Trim polyN stretches' );
+    my $ts = time;
+
+    my $tmp_out = File::Temp->new();
+    close $tmp_out;
 
     my @cmd = (
         $CUTADAPT,
@@ -844,11 +792,9 @@ sub trim_polyN {
         '--times' => '50',
         '--minimum-length' => '100',
         '--report' => 'minimal',
-        '-o' => $fo_reads,
+        '-o' => "$tmp_out",
         $fi_reads,
     );
-    run( command => \@cmd )
-        or die "shuffle failed: $!";
     my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
         = run( command => \@cmd );
     die "Error running cutadapt: $error_message"
@@ -867,14 +813,29 @@ sub trim_polyN {
         die "Missing field $field in cutadapt report\n"
             if (! defined $report{$field});
     }
-    return \%report;
+
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'trim', "Trimming took $el" );
+    plog( 'trim', sprintf(
+        "Trimmed %0.1f%% of reads; Discarded %0.1f%% reads; Discarded %0.1f%% bases",
+        $report{'w/adapters'} / $report{in_reads} * 100,
+        ($report{in_reads} - $report{out_reads})/$report{in_reads}*100,
+        ($report{in_bp} - $report{out_bp})/$report{out_bp}*100,
+    ) );
+
+    return $tmp_out;
 
 }
 
 sub filter_short {
     
-    my ($fi_cons, $fo_cons, $min_len) = @_;
+    my ($fi_cons, $min_len) = @_;
 
+    plog( 'filter', "Filtering contigs shorter than $min_len" );
+
+    my $ts = time;
+    my $n_start = n_seqs($fi_cons);
+    
     my $p = BioX::Seq::Stream->new($fi_cons);
     my @final;
     while (my $seq = $p->next_seq) {
@@ -882,20 +843,32 @@ sub filter_short {
         push @final, $seq;
     }
 
+    my $tmp_out = File::Temp->new();
+
     my $padding = length (scalar @final - 1);
     my $i = 0; 
-    open my $out, '>', $fo_cons;
     for my $ctg (sort {length($b) <=> length($a)} @final) {
         $ctg->id = sprintf "ctg_%0${padding}s", $i++;
-        print {$out} $ctg->as_fasta;
+        print {$tmp_out} $ctg->as_fasta;
     }
-    close $out;
+    close $tmp_out;
+
+    my $n_end = n_seqs($tmp_out);
+    my $n_filt = $n_start - $n_end;
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'filter', "Filtering took $el" );
+    plog( 'filter', "$n_filt contigs removed" );
+
+    return $tmp_out;
 
 }
 
 sub homopolish {
     
     my ($fi_ref, $fi_cons, $fo_cons) = @_;
+
+    plog( 'homopolish', "Polishing with homopolish" );
+    my $ts = time;
 
     my @cmd_hp = (
         $HOMOPOLISH,
@@ -916,19 +889,28 @@ sub homopolish {
         if (! -e $hp_out);
 
     # transfer annotations dropped by homopolish
-    transfer_annots(
+    my $cons = transfer_annots(
         $fi_cons,
         $hp_out,
-        $fo_cons,
         '_polish',
     );
+
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'homopolish', "Took $el" );
+
+    return $cons;
 
 }
 
 sub redundans {
 
-    my ($fi_cons, $fo_cons, $min_ident) = @_;
+    my ($fi_cons, $min_ident) = @_;
 
+    plog( 'reduce', "Removing redundant contigs with identity above $min_ident" );
+
+    my $ts = time;
+    my $n_start = n_seqs($fi_cons);
+    
     my @cmd = (
         $REDUNDANS,
         '-t' => $threads,
@@ -942,11 +924,18 @@ sub redundans {
         or die "Call to redundans failed: $!";
 
     # transfer annotations dropped by redundans
-    transfer_annots(
+    my $new_cons = transfer_annots(
         $fi_cons,
         'reduced/scaffolds.reduced.fa',
-        $fo_cons
     );
+
+    my $n_end = n_seqs($new_cons);
+    my $n_filt = $n_start - $n_end;
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'reduce', "Reduction took $el" );
+    plog( 'reduce', "$n_filt contigs removed" );
+
+    return $new_cons;
 
 }
 
@@ -1000,12 +989,12 @@ sub summarize_assembly {
 
 sub generate_pseudoreads {
 
-    my ($fi, $fo) = @_;
+    my ($fi) = @_;
 
     my $n_reads = 20;
     my $frac_size = 0.4;
 
-    open my $fh, '>', "$fo";
+    my $tmp_out = File::Temp->new();
 
     my $i = 0;
     my $p = BioX::Seq::Stream->new("$fi");
@@ -1014,18 +1003,21 @@ sub generate_pseudoreads {
         my $lsub = int( $l*$frac_size );
         my $start = $seq->range(1, $lsub);
         $start->id = sprintf("q%s", $i++);
-        print {$fh} $start->as_input;
+        print {$tmp_out} $start->as_input;
         my $end = $seq->range($l-$lsub+1, $l);
         $end->id = sprintf("q%s", $i++);
-        print {$fh} $end->as_input;
+        print {$tmp_out} $end->as_input;
         for (1..$n_reads) {
             my $s = int(rand($l-$lsub))+1;
             my $e = min($l, $s+$lsub-1 );
             my $sub = $seq->range($s, $e);
             $sub->id = sprintf("q%s", $i++);
-            print {$fh} $sub->as_input;
+            print {$tmp_out} $sub->as_input;
         }
     }
+
+    close $tmp_out;
+    return $tmp_out;
 
 }
 
@@ -1160,7 +1152,12 @@ Number of Medaka polishing rounds to perform (default: 1)
 =item B<--medaka_model> I<string>
 
 Name of model to be used by medaka_consensus (based on basecalling model used
-for data) (default: r941_min_high_g360)
+for data) (default: depends on medaka version)
+
+=item B<--medaka_batch_size> I<integer>
+
+Batch size (medaka_consensus parameter B<-b>) for medaka to use; using a
+smaller value should reduce memory consumption (default: 100)
 
 =item B<--hp_model> I<string>
 
@@ -1174,6 +1171,19 @@ Don't randomly shuffle input reads prior to assembly (default: shuffle)
 =item B<--trim_polyN>
 
 Trim long poly-N stretches from reads prior to assembly (default: off)
+
+=item B<--reassemblies> I<integer>
+
+Perform one or more rounds of pseudo-assembly in order to minimize redundancy.
+For each round, the existing assembly is shredded into pseudoreads and
+reassembled.
+
+=item B<--chunk_size> I<integer>
+
+If this option is given, input reads will be split into chunks of
+B<--chunk_size> reads and each chunk will be assembled independently. The
+resulting assemblies will be combined, shredded into pseudoreads, and
+reassembled.
 
 =item B<--deterministic>
 

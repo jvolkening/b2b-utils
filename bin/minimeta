@@ -13,7 +13,7 @@ use File::Copy qw/copy/;
 use File::Temp;
 use Getopt::Long;
 use IPC::Cmd qw/can_run run run_forked/;
-use List::Util qw/min/;
+use List::Util qw/max min/;
 use Pod::Usage;
 use Time::Seconds;
 
@@ -48,6 +48,7 @@ my $polyN_len = 30;
 my $chunk_size;
 my $reassemblies = 0;
 my $medaka_batch_size = 100;
+my $shred_len = 500;
 
 GetOptions(
     #-inputs-----------------------------------------------------------------#
@@ -191,7 +192,11 @@ check_empty($curr_cons);
 # perform secondary assemblies if requested
 for my $i (1..$reassemblies) {
     my $pseudoreads = generate_pseudoreads($curr_cons);
+    my $minimizer_cutoff_orig = $minimizer_cutoff;
+    $minimizer_cutoff = undef;
     $curr_cons = assemble( $pseudoreads, 're-assembly' );
+    $minimizer_cutoff = $minimizer_cutoff_orig;
+
 }
 
 check_empty($curr_cons);
@@ -306,9 +311,12 @@ sub assemble_chunked {
 
     # shred contigs into pseudo-reads
     my $pseudoreads = generate_pseudoreads( $tmp_combined );
+    my $minimizer_cutoff_orig = $minimizer_cutoff;
+    $minimizer_cutoff = undef;
     my $min_cov_orig = $min_cov;
     $min_cov = 1;
     my $cons = assemble( $pseudoreads, 're-assembly' );
+    $minimizer_cutoff = $minimizer_cutoff_orig;
     $min_cov = $min_cov_orig;
 
     return $cons;
@@ -992,8 +1000,9 @@ sub generate_pseudoreads {
 
     my ($fi) = @_;
 
-    my $n_reads = 20;
-    my $frac_size = 0.4;
+    my $tgt_depth = 5;
+    #my $n_reads = 10;
+    my $max_frac = 0.66;
 
     my $tmp_out = File::Temp->new();
 
@@ -1001,7 +1010,14 @@ sub generate_pseudoreads {
     my $p = BioX::Seq::Stream->new("$fi");
     while (my $seq = $p->next_seq) {
         my $l = length($seq);
-        my $lsub = int( $l*$frac_size );
+        my $lsub = min(
+            $shred_len,
+            int( $l*$max_frac )
+        );
+        my $n_reads = max(
+            5,
+            int($l * $tgt_depth / $lsub)
+        );
         my $start = $seq->range(1, $lsub);
         $start->id = sprintf("q%s", $i++);
         print {$tmp_out} $start->as_input;

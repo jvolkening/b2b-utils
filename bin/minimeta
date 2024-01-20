@@ -12,11 +12,12 @@ use File::Basename qw/basename/;
 use File::Copy qw/copy/;
 use File::Temp;
 use Getopt::Long;
-use IPC::Cmd qw/can_run run/;
+use IPC::Cmd qw/can_run run run_forked/;
+use List::Util qw/min/;
 use Pod::Usage;
 use Time::Seconds;
 
-our $VERSION = 0.008;
+our $VERSION = 0.009;
 use constant PROGRAM => 'minimeta';
 
 #-inputs---------------------------------------------------------------------#
@@ -44,7 +45,7 @@ my $shuffle = 1;
 my $deterministic = 0;
 my $trim_polyN = 0;
 my $polyN_len = 30;
-my $max_chunk_size;
+my $chunk_size;
 my $iterations = 1;
 
 GetOptions(
@@ -68,7 +69,7 @@ GetOptions(
     'minimizer_cutoff=i' => \$minimizer_cutoff,
     'reduce'             => \$reduce,
     'iterations=i'       => \$iterations,
-    'chunk_size=i'       => \$max_chunk_size,
+    'chunk_size=i'       => \$chunk_size,
     'min_ident=f'        => \$min_ident,
     'shuffle!'           => \$shuffle,
     'trim_polyN!'        => \$trim_polyN,
@@ -193,6 +194,82 @@ if (defined $fi_consensus) {
     copy $fi_consensus, $curr_cons;
     plog( 'assembly', "Using provided assembly" );
 }
+
+elsif (defined $chunk_size) {
+
+    my $p = BioX::Seq::Stream->new($in_base);
+    my $curr_tmp = File::Temp->new(UNLINK => 1);
+    my $curr_n = 0;
+    my @assemblies;
+    my $i = 1;
+    while (my $seq = $p->next_seq) {
+        print {$curr_tmp} $seq->as_input;
+        ++$curr_n;
+        if ($curr_n >= $chunk_size) {
+            close $curr_tmp;
+            my $ass = File::Temp->new(UNLINK => 1);
+            close $ass;
+            plog( 'sub-assembly', "Sub-assembly $i with miniasm" );
+            my $ts = time;
+            map_ava( $curr_tmp, 'init.paf' );
+            miniasm( $curr_tmp, 'init.paf', $ass );
+            my $n = n_seqs($ass);
+            my $el = Time::Seconds->new(time - $ts)->pretty;
+            plog( 'sub-assembly', "Sub-assembly $i took $el" );
+            plog( 'sub-assembly', "Assembled $n contigs" );
+            push @assemblies, $ass;
+            ++$i;
+            $curr_n = 0;
+            $curr_tmp = File::Temp->new(UNLINK => 1);
+        }
+    }
+    if ($curr_n >= 1) {
+        close $curr_tmp;
+        my $ass = File::Temp->new(UNLINK => 1);
+        close $ass;
+        plog( 'sub-assembly', "Sub-assembly $i with miniasm" );
+        my $ts = time;
+        map_ava( $curr_tmp, 'init.paf' );
+        miniasm( $curr_tmp, 'init.paf', $ass );
+        my $n = n_seqs($ass);
+        my $el = Time::Seconds->new(time - $ts)->pretty;
+        plog( 'sub-assembly', "Sub-assembly $i took $el" );
+        plog( 'sub-assembly', "Assembled $n contigs" );
+        push @assemblies, $ass;
+        ++$i;
+        $curr_n = 0;
+    }
+    my $tmp_combined = File::Temp->new(UNLINK => 1);
+    my $ci = 0;
+    for my $ass (@assemblies) {
+        my $p = BioX::Seq::Stream->new("$ass");
+        while (my $seq = $p->next_seq) {
+            $seq->id = sprintf("c%s", $ci++);
+            print {$tmp_combined} $seq->as_fasta;
+        }
+    }
+    close $tmp_combined;
+    my $tmp_pseudo = File::Temp->new(UNLINK => 1);
+    close $tmp_pseudo;
+    generate_pseudoreads(
+        $tmp_combined,
+        $tmp_pseudo,
+    );
+            
+    plog( 'assembly', 'Initial assembly with miniasm' );
+    my $ts = time;
+    my $min_cov_orig = $min_cov;
+    $min_cov = 1;
+    map_ava( $tmp_pseudo, 'init.paf' );
+    miniasm( $tmp_pseudo, 'init.paf', $curr_cons );
+    $min_cov = $min_cov_orig;
+    my $n = n_seqs($curr_cons);
+    my $el = Time::Seconds->new(time - $ts)->pretty;
+    plog( 'assembly', "Assembly took $el" );
+    plog( 'assembly', "Assembled $n contigs" );
+
+}
+
 else {
     plog( 'assembly', 'Initial assembly with miniasm' );
     my $ts = time;
@@ -376,13 +453,15 @@ sub map_ava {
         $MINIMAP2,
         '-t' => $threads,
         '-x' => 'ava-ont',
-        '-o' => $fo,
+        '-o' => "$fo",
         @fmax,
-        $fi,
-        $fi,
+        "$fi",
+        "$fi",
     );
-    run( command => \@cmd )
-        or die "Initial AVA mapping failed: $!";
+    my $res = run_forked( \@cmd );
+    if ($res->{exit_code} != 0) {
+        "Initial AVA mapping failed: $res->{err_msg}";
+    }
 }
 
 sub mask_below {
@@ -594,7 +673,7 @@ sub miniasm {
         '-c' => $min_cov,
         '-e' => 1,
         '-I' => '0.2',
-        '-f' => $fi_reads,
+        '-f' => "$fi_reads",
         $fi_paf,
     );
     #open my $stream, '-|', @cmd;
@@ -604,7 +683,7 @@ sub miniasm {
         if (! $success);
 
     # convert GFA to FASTA
-    open my $out, '>', $fo;
+    open my $out, '>', "$fo";
     # this hack is necessary to process output by line; otherwise buffering can
     # cause incomplete lines to be processed
     my $stdout = join '', @{ $stdout_buf};
@@ -889,7 +968,7 @@ sub buff_to_str {
 sub n_seqs {
 
     my ($fn) = @_;
-    return scalar BioX::Seq::Fetch->new($fn)->ids;
+    return scalar BioX::Seq::Fetch->new("$fn")->ids;
 
 }
 
@@ -916,6 +995,37 @@ sub summarize_assembly {
             $max_len,
         )
     );
+
+}
+
+sub generate_pseudoreads {
+
+    my ($fi, $fo) = @_;
+
+    my $n_reads = 20;
+    my $frac_size = 0.4;
+
+    open my $fh, '>', "$fo";
+
+    my $i = 0;
+    my $p = BioX::Seq::Stream->new("$fi");
+    while (my $seq = $p->next_seq) {
+        my $l = length($seq);
+        my $lsub = int( $l*$frac_size );
+        my $start = $seq->range(1, $lsub);
+        $start->id = sprintf("q%s", $i++);
+        print {$fh} $start->as_input;
+        my $end = $seq->range($l-$lsub+1, $l);
+        $end->id = sprintf("q%s", $i++);
+        print {$fh} $end->as_input;
+        for (1..$n_reads) {
+            my $s = int(rand($l-$lsub))+1;
+            my $e = min($l, $s+$lsub-1 );
+            my $sub = $seq->range($s, $e);
+            $sub->id = sprintf("q%s", $i++);
+            print {$fh} $sub->as_input;
+        }
+    }
 
 }
 

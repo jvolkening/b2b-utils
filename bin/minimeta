@@ -157,6 +157,7 @@ if (defined $fo_consensus) {
 my $init_dir = abs_path(getcwd());
 my $in_base = basename($fi_reads);
 my $wd =  File::Temp->newdir(CLEANUP => 1);
+$ENV{TMPDIR} = $wd;
 chdir $wd;
 
 # Preprocess reads, as asked

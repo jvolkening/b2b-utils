@@ -17,7 +17,7 @@ use List::Util qw/max min/;
 use Pod::Usage;
 use Time::Seconds;
 
-our $VERSION = 0.010;
+our $VERSION = 0.011;
 use constant PROGRAM => 'minimeta';
 
 #-inputs---------------------------------------------------------------------#
@@ -48,7 +48,9 @@ my $polyN_len = 30;
 my $chunk_size;
 my $reassemblies = 0;
 my $medaka_batch_size = 100;
-my $shred_len = 500;
+my $shred_len = 2000;
+my $shred_tgt_depth = 10;
+my $shred_max_frac = 0.66;
 
 GetOptions(
     #-inputs-----------------------------------------------------------------#
@@ -76,6 +78,9 @@ GetOptions(
     'shuffle!'            => \$shuffle,
     'trim_polyN!'         => \$trim_polyN,
     'medaka_batch_size=i' => \$medaka_batch_size,
+    'shred_len=i'         => \$shred_len,
+    'shred_tgt_depth=i'   => \$shred_tgt_depth,
+    'shred_max_frac=f'    => \$shred_max_frac,
     'deterministic'       => \$deterministic,
     'quiet'               => \$quiet,
     'help'                => sub{ pod2usage(-verbose => 2, -exitval => 0); },
@@ -191,12 +196,7 @@ check_empty($curr_cons);
 
 # perform secondary assemblies if requested
 for my $i (1..$reassemblies) {
-    my $pseudoreads = generate_pseudoreads($curr_cons);
-    my $minimizer_cutoff_orig = $minimizer_cutoff;
-    $minimizer_cutoff = undef;
-    $curr_cons = assemble( $pseudoreads, 're-assembly' );
-    $minimizer_cutoff = $minimizer_cutoff_orig;
-
+    $curr_cons = reassemble($curr_cons);
 }
 
 check_empty($curr_cons);
@@ -263,9 +263,10 @@ sub assemble {
     my $cons = miniasm( $fi_reads, $paf );
 
     my $n = n_seqs($cons);
+    my $l = longest($cons);
     my $el = Time::Seconds->new(time - $ts)->pretty;
     plog( $log, ucfirst( "$log took $el" ) );
-    plog( $log, "Assembled $n contigs" );
+    plog( $log, "Assembled $n contigs (long: $l)" );
 
     return $cons;
 
@@ -275,17 +276,22 @@ sub assemble_chunked {
 
     my ($fi_reads) = @_;
 
-    my $p = BioX::Seq::Stream->new($fi_reads);
+    my $p = BioX::Seq::Stream->new("$fi_reads");
     my $curr_chunk = File::Temp->new();
     my $curr_n = 0;
     my @assemblies;
     my $i = 1;
+    my $n_chunks = 0;
     while (my $seq = $p->next_seq) {
         print {$curr_chunk} $seq->as_input;
         ++$curr_n;
         if ($curr_n >= $chunk_size) {
+
             close $curr_chunk;
-            push @assemblies, assemble( $curr_chunk, 'sub-assembly' );
+            my $init = assemble( $curr_chunk, 'sub-assembly' );
+            push @assemblies, reassemble($init);
+            ++$n_chunks;
+
             ++$i;
             $curr_n = 0;
             $curr_chunk = File::Temp->new();
@@ -294,7 +300,9 @@ sub assemble_chunked {
     # process last chunk
     if ($curr_n >= 1) {
         close $curr_chunk;
-        push @assemblies, assemble( $curr_chunk, 'sub-assembly' );
+        my $init = assemble( $curr_chunk, 'sub-assembly' );
+        push @assemblies, reassemble($init);
+        ++$n_chunks;
     }
 
     # combine assemblies into single FASTA
@@ -309,17 +317,34 @@ sub assemble_chunked {
     }
     close $tmp_combined;
 
-    # shred contigs into pseudo-reads
-    my $pseudoreads = generate_pseudoreads( $tmp_combined );
+    # don't reassemble (again) if there was only one chunk
+    return $n_chunks > 1
+        ? reassemble($tmp_combined)
+        : $tmp_combined;
+
+}
+
+sub reassemble {
+
+    my ($fi) = @_;
+
+    my $pseudoreads = generate_pseudoreads($fi);
+
+    # save current state
     my $minimizer_cutoff_orig = $minimizer_cutoff;
-    $minimizer_cutoff = undef;
     my $min_cov_orig = $min_cov;
+
+    # use "everything" for re-assembly
+    $minimizer_cutoff = undef;
     $min_cov = 1;
-    my $cons = assemble( $pseudoreads, 're-assembly' );
+
+    my $new = assemble( $pseudoreads, 're-assembly' );
+
+    # restore current sate
     $minimizer_cutoff = $minimizer_cutoff_orig;
     $min_cov = $min_cov_orig;
 
-    return $cons;
+    return $new;
 
 }
 
@@ -360,7 +385,7 @@ sub map_ava {
     );
     my $res = run_forked( \@cmd );
     if ($res->{exit_code} != 0) {
-        die "Initial AVA mapping failed: $res->{err_msg}";
+        die "AVA mapping failed: $res->{err_msg}";
     }
 
     return $tmp_out;
@@ -387,8 +412,10 @@ sub mask_below {
         $fi_cons,
         $fi_reads,
     );
-    run( command => \@cmd_mm )
-        or die "consensus read mapping failed: $!";
+    my $res = run_forked( \@cmd_mm );
+    if ($res->{exit_code} != 0) {
+        die "consensus read mapping failed: $res->{err_msg}";
+    }
 
     my @cmd_sort = (
         $SAMTOOLS,
@@ -397,8 +424,10 @@ sub mask_below {
         '-o' => 'sorted.bam',
         'mask.sam',
     );
-    run( command => \@cmd_sort )
-        or die "SAM sorting failed: $!";
+    $res = run_forked( \@cmd_sort );
+    if ($res->{exit_code} != 0) {
+        die "samtools sort failed: $res->{err_msg}";
+    }
 
     my @cmd_cov = (
         $BEDTOOLS,
@@ -432,7 +461,7 @@ sub mask_below {
         }
         close $cov;
         
-        my $p = BioX::Seq::Fetch->new($fi_cons);
+        my $p = BioX::Seq::Fetch->new("$fi_cons");
         for my $chr (@order) {
             my $seq = $p->fetch_seq($chr)
                 // die "Seq $chr missing in input";
@@ -508,15 +537,17 @@ sub mask_below {
             '-bed' => 'mask.bed',
             '-fo' => "$tmp_out",
         );
-        run( command => \@cmd_mask )
-            or die "Error running bedtools maskfasta: $!";
+        my $res = run_forked( \@cmd_mask );
+        if ($res->{exit_code} != 0) {
+            die "bedtools maskfasta failed: $res->{err_msg}";
+        }
 
     }
 
     # ... or we split the contigs
     else {
 
-        my $p = BioX::Seq::Stream->new($fi_cons);
+        my $p = BioX::Seq::Stream->new("$fi_cons");
         CHR:
         while (my $seq = $p->next_seq) {
 
@@ -600,7 +631,7 @@ sub miniasm {
     #open my $stream, '-|', @cmd;
     my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
         = run( command => \@cmd );
-    die "Error running miniasm: $error_message"
+    die "miniasm failed: $error_message"
         if (! $success);
 
     # convert GFA to FASTA
@@ -641,11 +672,13 @@ sub racon {
         '-a',
         '-x' => 'map-ont',
         '-o' => 'rc.sam',
-        $fi_cons,
-        $fi_reads,
+        "$fi_cons",
+        "$fi_reads",
     );
-    run( command => \@cmd_mm )
-        or die "consensus read mapping failed: $!";
+    my $res = run_forked( \@cmd_mm );
+    if ($res->{exit_code} != 0) {
+        die "consensus read mapping failed: $res->{err_msg}";
+    }
 
     # call new consensus with Racon
     # racon -m 8 -x -6 -g -8 -w 500 --no-trimming trimmed.fq rc.sam trim.fa > rc.fa
@@ -657,14 +690,14 @@ sub racon {
         '--gap'           => '-8',
         '--window-length' => 500,
         '--no-trimming',
-        $fi_reads,
+        "$fi_reads",
         'rc.sam',
-        $fi_cons
+        "$fi_cons"
     );
     
     my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
         = run( command => \@cmd_rc );
-    die "Error running racon: $error_message"
+    die "racon failed: $error_message"
         if (! $success);
 
     my $tmp_out = File::Temp->new();
@@ -697,15 +730,17 @@ sub medaka {
         '-t' => $threads,
         '-f',
         '-b' => $medaka_batch_size,
-        '-i' => $fi_reads,
-        '-d' => $fi_cons,
+        '-i' => "$fi_reads",
+        '-d' => "$fi_cons",
         '-o' => 'polished',
     );
     if (defined $med_model) {
         push @cmd, '-m' => $med_model;
     }
-    run( command => \@cmd )
-        or die "Call to medaka failed: $!";
+    my $res = run_forked( \@cmd );
+    if ($res->{exit_code} != 0) {
+        die "medaka failed: $res->{err_msg}";
+    }
 
     # transfer annotations dropped by Medaka
     my $cons = transfer_annots(
@@ -728,12 +763,12 @@ sub transfer_annots {
 
     # read annotations from input contigs
     my %annots;
-    my $p = BioX::Seq::Stream->new($fn_old);
+    my $p = BioX::Seq::Stream->new("$fn_old");
     while (my $seq = $p->next_seq) {
         $annots{$seq->id} = $seq->desc // '';
     }
     # copy annotations to output contigs
-    $p = BioX::Seq::Stream->new($fn_new);
+    $p = BioX::Seq::Stream->new("$fn_new");
     while (my $seq = $p->next_seq) {
         my $id = $seq->id;
         if (defined $strip_suffix) {
@@ -772,8 +807,10 @@ sub shuffle {
         '-o' => "$tmp_out",
         "$fi_reads",
     );
-    run( command => \@cmd )
-        or die "shuffle failed: $!";
+    my $res = run_forked( \@cmd );
+    if ($res->{exit_code} != 0) {
+        die "shuffle failed: $res->{err_msg}";
+    }
 
     my $el = Time::Seconds->new(time - $ts)->pretty;
     plog( 'shuffle', "Shuffle took $el" );
@@ -802,11 +839,11 @@ sub trim_polyN {
         '--minimum-length' => '100',
         '--report' => 'minimal',
         '-o' => "$tmp_out",
-        $fi_reads,
+        "$fi_reads",
     );
     my ( $success, $error_message, $full_buf, $stdout_buf, $stderr_buf )
         = run( command => \@cmd );
-    die "Error running cutadapt: $error_message"
+    die "cutadapt failed: $error_message"
         if (! $success);
     my $so = buff_to_str($stdout_buf);
     my ($k, $v, @other) = split /\n/, $so;
@@ -845,7 +882,7 @@ sub filter_short {
     my $ts = time;
     my $n_start = n_seqs($fi_cons);
     
-    my $p = BioX::Seq::Stream->new($fi_cons);
+    my $p = BioX::Seq::Stream->new("$fi_cons");
     my @final;
     while (my $seq = $p->next_seq) {
         next if (length $seq < $min_len);
@@ -882,14 +919,16 @@ sub homopolish {
     my @cmd_hp = (
         $HOMOPOLISH,
         'polish',
-        '-a' => $fi_cons,
-        '-l' => $fi_ref,
+        '-a' => "$fi_cons",
+        '-l' => "$fi_ref",
         '-m' => $hp_model,
         '--minimap_args' => 'map-ont',
         '-o' => 'hp',
     );
-    run( command => \@cmd_hp )
-        or die "homopolish failed: $!";
+    my $res = run_forked( \@cmd_hp );
+    if ($res->{exit_code} != 0) {
+        die "homopolish failed: $res->{err_msg}";
+    }
 
     my $basename = basename($fi_cons);
     $basename =~ s/\..*//;
@@ -929,8 +968,10 @@ sub redundans {
         '-f' => $fi_cons,
         '-o' => 'reduced',
     );
-    run( command => \@cmd )
-        or die "Call to redundans failed: $!";
+    my $res = run_forked( \@cmd );
+    if ($res->{exit_code} != 0) {
+        die "redundans failed: $res->{err_msg}";
+    }
 
     # transfer annotations dropped by redundans
     my $new_cons = transfer_annots(
@@ -970,6 +1011,19 @@ sub n_seqs {
 
 }
 
+sub longest {
+
+    my ($fn) = @_;
+    my $p = BioX::Seq::Stream->new("$fn");
+    my $max = 0;
+    while (my $seq = $p->next_seq) {
+        my $l = length $seq;
+        $max = $l if ($l > $max);
+    }
+    return $max;
+
+}
+
 sub summarize_assembly {
 
     my ($fn) = @_;
@@ -977,7 +1031,7 @@ sub summarize_assembly {
     my $len_total = 0;
     my $n_seqs = 0;
     my $max_len = 0;
-    my $p = BioX::Seq::Stream->new($fn);
+    my $p = BioX::Seq::Stream->new("$fn");
     while (my $seq = $p->next_seq) {
         my $l = length $seq;
     ++$n_seqs;
@@ -1000,10 +1054,6 @@ sub generate_pseudoreads {
 
     my ($fi) = @_;
 
-    my $tgt_depth = 5;
-    #my $n_reads = 10;
-    my $max_frac = 0.66;
-
     my $tmp_out = File::Temp->new();
 
     my $i = 0;
@@ -1012,11 +1062,11 @@ sub generate_pseudoreads {
         my $l = length($seq);
         my $lsub = min(
             $shred_len,
-            int( $l*$max_frac )
+            int( $l*$shred_max_frac )
         );
         my $n_reads = max(
             5,
-            int($l * $tgt_depth / $lsub)
+            int($l * $shred_tgt_depth / $lsub)
         );
         my $start = $seq->range(1, $lsub);
         $start->id = sprintf("q%s", $i++);
@@ -1175,6 +1225,23 @@ for data) (default: depends on medaka version)
 
 Batch size (medaka_consensus parameter B<-b>) for medaka to use; using a
 smaller value should reduce memory consumption (default: 100)
+
+=item B<--shred_len> I<integer>
+
+For re-assemblies, the maximum length of pseudo-reads to generate as an
+absolute value; the actual value will be the minimum of this and the value of
+B<--shred_max_frac> times the actual contig length (default: 2000)
+
+=item B<--shred_max_frac> I<float>
+
+For re-assemblies, the maximum length of pseudo-reads to generate as a
+fraction of the contig length; the actual value will be the minimum of this
+and the value of B<--shred_len> (default: 0.66)
+
+=item B<--shred_tgt_depth> I<integer>
+
+For re-assemblies, the target depth of the pseudoreads on each contig; this is
+used to calculate how many reads to generate (default: 10)
 
 =item B<--hp_model> I<string>
 

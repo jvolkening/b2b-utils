@@ -201,6 +201,11 @@ for my $i (1..$reassemblies) {
 
 check_empty($curr_cons);
 
+# do a pre-filter here, since it can dramatically speed up medaka to throw
+# away short contigs now, even though the sizes may change somewhat after
+# polishing
+$curr_cons = filter_short( $curr_cons, $min_len );
+
 # racon polishing
 for my $i (1..$n_racon) {
     $curr_cons = racon( $in_base, $curr_cons );

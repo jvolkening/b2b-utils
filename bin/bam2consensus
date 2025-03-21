@@ -30,7 +30,7 @@ my $sliding_window = 30;
 my $bg_bin_figs    = 0;
 my $verbose        = 0;
 
-our $VERSION = 0.004;
+our $VERSION = 0.005;
 use constant PROGRAM => 'bam2consensus';
 
 GetOptions(
@@ -487,12 +487,12 @@ sub handle_entry {
                 $counts{C},
                 $counts{N},
                 $counts{'*'},
-                sprintf('%.3f',$counts{A}/$counted_depth),
-                sprintf('%.3f',$counts{T}/$counted_depth),
-                sprintf('%.3f',$counts{G}/$counted_depth),
-                sprintf('%.3f',$counts{C}/$counted_depth),
-                sprintf('%.3f',$counts{N}/$counted_depth),
-                sprintf('%.3f',$counts{'*'}/$counted_depth),
+                sprintf('%.3f',($counted_depth && $counts{A}/$counted_depth)),
+                sprintf('%.3f',($counted_depth && $counts{T}/$counted_depth)),
+                sprintf('%.3f',($counted_depth && $counts{G}/$counted_depth)),
+                sprintf('%.3f',($counted_depth && $counts{C}/$counted_depth)),
+                sprintf('%.3f',($counted_depth && $counts{N}/$counted_depth)),
+                sprintf('%.3f',($counted_depth && $counts{'*'}/$counted_depth)),
                 sprintf('%.3f',$sb{A}),
                 sprintf('%.3f',$sb{T}),
                 sprintf('%.3f',$sb{G}),
